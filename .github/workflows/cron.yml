@@ -1,5 +1,3 @@
-# .github/workflows/cron.yml
-
 name: YouTube → Supabase pipeline
 
 on:
@@ -18,37 +16,41 @@ jobs:
     name: Import daily videos
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Debug environment
+        run: |
+          echo "=== ENTORNO IMPORT_DAILY ==="
+          env
 
       - name: Run import_daily.py
         run: python scripts/import_daily.py
         env:
-          YT_CLIENT_ID:        ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:    ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:    ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          DAILY_VIDEO_BATCH:   ${{ secrets.DAILY_VIDEO_BATCH }}
-          CHANNEL_ID:          ${{ secrets.CHANNEL_ID }}
+          DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
+          CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
 
   reconcile_comments:
     name: Reconcile comments
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-
+        with: { python-version: "3.x" }
       - run: pip install -r requirements.txt
-
       - run: python scripts/reconcile_comments.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
@@ -59,13 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-
+        with: { python-version: "3.x" }
       - run: pip install -r requirements.txt
-
       - run: python scripts/purge_buffer.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
@@ -76,13 +74,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-
+        with: { python-version: "3.x" }
       - run: pip install -r requirements.txt
-
       - run: python scripts/maint_metrics.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
