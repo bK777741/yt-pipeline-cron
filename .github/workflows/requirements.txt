@@ -1,0 +1,8 @@
+# requirements.txt — en la raíz de yt-pipeline-cron/
+
+python-dotenv
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+supabase
+pytz
