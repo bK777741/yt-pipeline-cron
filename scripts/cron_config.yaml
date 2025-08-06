@@ -1,1 +1,25 @@
+services:
+  - type: cron
+    name: import_daily
+    schedule: "0 7 * * *"        # 02:00 Lima
+    env: python
+    startCommand: "python scripts/import_daily.py"
+
+  - type: cron
+    name: reconcile_comments
+    schedule: "30 7 * * *"       # 02:30 Lima
+    env: python
+    startCommand: "python scripts/reconcile_comments.py"
+
+  - type: cron
+    name: purge_buffer
+    schedule: "0 8 * * *"        # 03:00 Lima
+    env: python
+    startCommand: "python scripts/purge_buffer.py"
+
+  - type: cron
+    name: maint_metrics
+    schedule: "0 9 * * *"        # 04:00 Lima
+    env: python
+    startCommand: "python scripts/maint_metrics.py"
 
