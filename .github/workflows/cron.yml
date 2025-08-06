@@ -3,36 +3,28 @@
 name: YouTube → Supabase pipeline
 
 on:
-  # Permite ejecutar manualmente desde Actions → Run workflow
   workflow_dispatch:
-
-  # Ejecuta en cada push a la rama main
   push:
     branches:
       - main
-
-  # Cron jobs en horarios de Lima (UTC−5)
   schedule:
-    - cron:  "0 7 * * *"     # import_daily   (02:00 Lima)
-    - cron:  "30 7 * * *"    # reconcile_comments (02:30 Lima)
-    - cron:  "0 8 * * *"     # purge_buffer  (03:00 Lima)
-    - cron:  "0 9 * * *"     # maint_metrics (04:00 Lima)
+    - cron: "0 7 * * *"     # import_daily (02:00 Lima)
+    - cron: "30 7 * * *"    # reconcile_comments (02:30 Lima)
+    - cron: "0 8 * * *"     # purge_buffer (03:00 Lima)
+    - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
 
 jobs:
   import_daily:
     name: Import daily videos
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
       - name: Run import_daily.py
         run: python scripts/import_daily.py
@@ -43,24 +35,21 @@ jobs:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DAILY_VIDEO_BATCH:   ${{ secrets.DAILY_VIDEO_BATCH }}
+          CHANNEL_ID:          ${{ secrets.CHANNEL_ID }}
 
   reconcile_comments:
     name: Reconcile comments
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Run reconcile_comments.py
-        run: python scripts/reconcile_comments.py
+      - run: python scripts/reconcile_comments.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -69,19 +58,15 @@ jobs:
     name: Purge old buffer data
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Run purge_buffer.py
-        run: python scripts/purge_buffer.py
+      - run: python scripts/purge_buffer.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -90,21 +75,18 @@ jobs:
     name: Update video metrics
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Run maint_metrics.py
-        run: python scripts/maint_metrics.py
+      - run: python scripts/maint_metrics.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
 
 
