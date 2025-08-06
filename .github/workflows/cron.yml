@@ -27,10 +27,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # —— DEBUG: imprime el mismo env que usa tu script ——
       - name: Debug environment
         run: |
           echo "=== ENTORNO IMPORT_DAILY ==="
-          env
+          echo "CHANNEL_ID = $CHANNEL_ID"
+          echo "DAILY_VIDEO_BATCH = $DAILY_VIDEO_BATCH"
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
+          CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
 
       - name: Run import_daily.py
         run: python scripts/import_daily.py
