@@ -27,12 +27,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # —— DEBUG: imprime el mismo env que usa tu script ——
       - name: Debug environment
         run: |
           echo "=== ENTORNO IMPORT_DAILY ==="
-          echo "CHANNEL_ID = $CHANNEL_ID"
-          echo "DAILY_VIDEO_BATCH = $DAILY_VIDEO_BATCH"
+          echo "CHANNEL_ID = '$CHANNEL_ID'"
+          echo "DAILY_VIDEO_BATCH = '$DAILY_VIDEO_BATCH'"
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -59,7 +58,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: { python-version: "3.x" }
+        with:
+          python-version: "3.x"
       - run: pip install -r requirements.txt
       - run: python scripts/reconcile_comments.py
         env:
@@ -67,12 +67,13 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
   purge_buffer:
-    name: Purge old buffer data
+    name: Purge buffer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: { python-version: "3.x" }
+        with:
+          python-version: "3.x"
       - run: pip install -r requirements.txt
       - run: python scripts/purge_buffer.py
         env:
@@ -80,12 +81,13 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
   maint_metrics:
-    name: Update video metrics
+    name: Maintain metrics
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-        with: { python-version: "3.x" }
+        with:
+          python-version: "3.x"
       - run: pip install -r requirements.txt
       - run: python scripts/maint_metrics.py
         env:
