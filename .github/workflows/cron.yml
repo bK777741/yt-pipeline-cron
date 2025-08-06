@@ -1,1 +1,66 @@
+name: YouTube → Supabase pipeline
+
+on:
+  schedule:
+    - cron: "0 7 * * *"     # import_daily (02:00 Lima)
+    - cron: "30 7 * * *"    # reconcile_comments (02:30 Lima)
+    - cron: "0 8 * * *"     # purge_buffer (03:00 Lima)
+    - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
+
+jobs:
+  import_daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/import_daily.py
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DAILY_VIDEO_BATCH: ${{ secrets.DAILY_VIDEO_BATCH }}
+
+  reconcile_comments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/reconcile_comments.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+  purge_buffer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/purge_buffer.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+  maint_metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/maint_metrics.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
