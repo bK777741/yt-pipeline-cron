@@ -15,13 +15,13 @@ def load_env():
     load_dotenv()
     creds = Credentials(
         token=None,
-        refresh_token=os.environ["YT_REFRESH_TOKEN"],
-        client_id=os.environ["YT_CLIENT_ID"],
-        client_secret=os.environ["YT_CLIENT_SECRET"],
+        refresh_token=os.environ["YT_REFRESH_TOKEN"].strip(),
+        client_id=os.environ["YT_CLIENT_ID"].strip(),
+        client_secret=os.environ["YT_CLIENT_SECRET"].strip(),
         token_uri="https://oauth2.googleapis.com/token",
     )
-    supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
+    supabase_url = os.environ["SUPABASE_URL"].strip()
+    supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
     return creds, supabase_url, supabase_key
 
 def init_clients(creds, supabase_url, supabase_key):
@@ -67,4 +67,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
