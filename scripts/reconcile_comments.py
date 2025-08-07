@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 reconcile_comments.py
-Sincroniza el estado de los comentarios borrados o moderados de YouTube (marca is_public=False).
+Filtra comentarios spam y actualiza estado.
 """
-
 import os
+import re
 from datetime import datetime, timedelta
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
+
+BLACKLIST = ["http", "www", "promo", "oferta", "gratis", "click", "visita", "comprar", "descuento", "spam"]
 
 def load_env():
     creds = Credentials(
@@ -27,34 +29,86 @@ def init_clients(creds, supabase_url, supabase_key):
     sb: Client = create_client(supabase_url, supabase_key)
     return yt, sb
 
-def fetch_buffered_comments(sb: Client):
-    resp = sb.table("comments").select("comment_id").execute()
-    return [row["comment_id"] for row in resp.data]
+def is_spam(text, author_created_at):
+    if not text:
+        return False, ""
+    
+    # Detectar URLs
+    if re.search(r"http\S+|www\.\S+", text, re.IGNORECASE):
+        return True, "Contiene URL"
+    
+    # Detectar palabras prohibidas
+    if any(word in text.lower() for word in BLACKLIST):
+        return True, "Palabra prohibida"
+    
+    # Detectar canales nuevos (<30 días)
+    if author_created_at > (datetime.utcnow() - timedelta(days=30)).isoformat():
+        return True, "Canal nuevo"
+    
+    return False, ""
 
-def check_comment_status(yt, comment_id):
-    req = yt.comments().list(part="id,snippet", id=comment_id)
-    resp = req.execute()
-    if not resp.get("items"):
-        return False
-    return True
+def fetch_author_info(yt, author_channel_id):
+    try:
+        channel = yt.channels().list(
+            part="snippet",
+            id=author_channel_id
+        ).execute()
+        if channel.get("items"):
+            return channel["items"][0]["snippet"]["publishedAt"]
+    except Exception:
+        pass
+    return None
 
-def upsert_comment_status(sb: Client, comment_id, is_public: bool):
-    sb.table("comments").upsert({
-        "comment_id": comment_id,
-        "is_public": is_public,
-        "checked_at": "now()"
-    }, on_conflict=["comment_id"]).execute()
+def check_comment(yt, comment_id):
+    try:
+        comment = yt.comments().list(
+            part="snippet",
+            id=comment_id
+        ).execute().get("items", [])
+        if comment:
+            snippet = comment[0]["snippet"]
+            return {
+                "text": snippet["textOriginal"],
+                "author_channel_id": snippet["authorChannelId"]["value"],
+                "is_public": True
+            }
+    except Exception:
+        pass
+    return None
+
+def process_comments(yt, sb, comment_ids):
+    for cid in comment_ids:
+        data = check_comment(yt, cid)
+        if not data:
+            sb.table("comments").delete().eq("comment_id", cid).execute()
+            continue
+        
+        author_created_at = fetch_author_info(yt, data["author_channel_id"])
+        spam, reason = is_spam(data["text"], author_created_at)
+        
+        # Borrar si es spam
+        if spam:
+            sb.table("comments").delete().eq("comment_id", cid).execute()
+        else:
+            sb.table("comments").upsert({
+                "comment_id": cid,
+                "is_public": data["is_public"],
+                "author_created_at": author_created_at,
+                "is_spam": spam,
+                "spam_reason": reason,
+                "checked_at": "now()"
+            }).execute()
 
 def main():
     creds, supabase_url, supabase_key = load_env()
     yt, sb = init_clients(creds, supabase_url, supabase_key)
-
-    all_comments = fetch_buffered_comments(sb)
-    for cid in all_comments:
-        public = check_comment_status(yt, cid)
-        upsert_comment_status(sb, cid, public)
-
-    print(f"[reconcile_comments] Comentarios verificados: {len(all_comments)}")
+    
+    # Obtener todos los comentarios
+    resp = sb.table("comments").select("comment_id").execute()
+    comment_ids = [row["comment_id"] for row in resp.data]
+    
+    process_comments(yt, sb, comment_ids)
+    print(f"[reconcile_comments] Comentarios procesados: {len(comment_ids)}")
 
 if __name__ == "__main__":
     main()
