@@ -54,11 +54,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Import daily videos'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Import daily videos** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   import_captions:
@@ -91,11 +92,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Import captions'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Import captions** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   reconcile_comments:
@@ -127,11 +129,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Reconcile comments'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Reconcile comments** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   purge_buffer:
@@ -160,11 +163,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Purge buffer'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Purge buffer** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   maint_metrics:
@@ -196,11 +200,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Maintain metrics'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Maintain metrics** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_video_analytics:
@@ -232,11 +237,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Fetch video analytics'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Fetch video analytics** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_monetization_metrics:
@@ -268,11 +274,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Fetch monetization metrics'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Fetch monetization metrics** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_trending_videos:
@@ -304,11 +311,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Fetch trending videos'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Fetch trending videos** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_search_trends:
@@ -318,11 +326,7 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
+      - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
@@ -347,11 +351,12 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
-          subject: '❌ Pipeline fallida: Fetch search trends'
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **Fetch search trends** ha fallado.
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 
