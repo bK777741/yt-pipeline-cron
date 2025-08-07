@@ -6,11 +6,9 @@ Borra de Supabase todo lo importado hace más de 60 días.
 
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from supabase import create_client, Client
 
 def load_env():
-    load_dotenv()
     supabase_url = os.environ["SUPABASE_URL"].strip()
     supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
     return supabase_url, supabase_key
@@ -33,4 +31,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
