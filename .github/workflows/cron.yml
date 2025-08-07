@@ -47,6 +47,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           subject: '❌ import_daily failed'
+          from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
           body: |
             El job **import_daily** ha fallado.
@@ -78,6 +79,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           subject: '❌ reconcile_comments failed'
+          from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
           body: |
             El job **reconcile_comments** ha fallado.
@@ -106,6 +108,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           subject: '❌ purge_buffer failed'
+          from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
           body: |
             El job **purge_buffer** ha fallado.
@@ -137,6 +140,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           subject: '❌ maint_metrics failed'
+          from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
           body: |
             El job **maint_metrics** ha fallado.
