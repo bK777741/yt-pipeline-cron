@@ -15,13 +15,13 @@ def load_env():
     load_dotenv()
     creds = Credentials(
         token=None,
-        refresh_token=os.environ["YT_REFRESH_TOKEN"],
-        client_id=os.environ["YT_CLIENT_ID"],
-        client_secret=os.environ["YT_CLIENT_SECRET"],
+        refresh_token=os.environ["YT_REFRESH_TOKEN"].strip(),
+        client_id=os.environ["YT_CLIENT_ID"].strip(),
+        client_secret=os.environ["YT_CLIENT_SECRET"].strip(),
         token_uri="https://oauth2.googleapis.com/token",
     )
-    supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
+    supabase_url = os.environ["SUPABASE_URL"].strip()
+    supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
     return creds, supabase_url, supabase_key
 
 def init_clients(creds, supabase_url, supabase_key):
@@ -30,17 +30,14 @@ def init_clients(creds, supabase_url, supabase_key):
     return yt, sb
 
 def fetch_buffered_comments(sb: Client):
-    # Trae todos los comment_ids de tu tabla de buffer (ejemplo: comments)
     resp = sb.table("comments").select("comment_id").execute()
     return [row["comment_id"] for row in resp.data]
 
 def check_comment_status(yt, comment_id):
-    # Llama a YouTube API para ver si existe / está borrado
     req = yt.comments().list(part="id,snippet", id=comment_id)
     resp = req.execute()
     if not resp.get("items"):
-        return False  # ya no existe
-    # aquí podrías mirar snippet["textDisplay"] u otras señales
+        return False
     return True
 
 def upsert_comment_status(sb: Client, comment_id, is_public: bool):
