@@ -56,23 +56,13 @@ jobs:
     name: Reconcile comments
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run reconcile_comments.py
-        run: python scripts/reconcile_comments.py
+      - run: pip install -r requirements.txt
+      - run: python scripts/reconcile_comments.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
@@ -88,25 +78,18 @@ jobs:
           to: jvillarreal0991@gmail.com
           body: |
             El job **reconcile_comments** ha fallado.
-            Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   purge_buffer:
     name: Purge buffer
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run purge_buffer.py
-        run: python scripts/purge_buffer.py
+      - run: pip install -r requirements.txt
+      - run: python scripts/purge_buffer.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -123,25 +106,18 @@ jobs:
           to: jvillarreal0991@gmail.com
           body: |
             El job **purge_buffer** ha fallado.
-            Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   maint_metrics:
     name: Maintain metrics
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run maint_metrics.py
-        run: python scripts/maint_metrics.py
+      - run: pip install -r requirements.txt
+      - run: python scripts/maint_metrics.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -158,8 +134,7 @@ jobs:
           to: jvillarreal0991@gmail.com
           body: |
             El job **maint_metrics** ha fallado.
-            Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} 
 
 
 
