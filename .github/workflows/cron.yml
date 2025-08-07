@@ -7,9 +7,14 @@ on:
       - main
   schedule:
     - cron: "0 7 * * *"     # import_daily (02:00 Lima)
+    - cron: "15 7 * * *"    # import_captions (02:15 Lima)
     - cron: "30 7 * * *"    # reconcile_comments (02:30 Lima)
     - cron: "0 8 * * *"     # purge_buffer (03:00 Lima)
     - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
+    - cron: "0 10 * * *"    # fetch_video_analytics (05:00 Lima)
+    - cron: "0 11 * * *"    # fetch_monetization_metrics (06:00 Lima)
+    - cron: "30 11 * * *"   # fetch_trending_videos (06:30 Lima)
+    - cron: "45 11 * * *"   # fetch_search_trends (06:45 Lima)
 
 jobs:
   import_daily:
@@ -55,6 +60,42 @@ jobs:
           body: |
             El job **import_daily** ha fallado.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  import_captions:
+    name: Import captions
+    runs-on: ubuntu-latest
+    needs: import_daily
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/import_captions.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
+          subject: '❌ import_captions failed'
+          from: jvillarreal0991@gmail.com
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **import_captions** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   reconcile_comments:
     name: Reconcile comments
@@ -156,6 +197,149 @@ jobs:
           to: jvillarreal0991@gmail.com
           body: |
             El job **maint_metrics** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  fetch_video_analytics:
+    name: Fetch video analytics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_video_analytics.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
+          subject: '❌ fetch_video_analytics failed'
+          from: jvillarreal0991@gmail.com
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **fetch_video_analytics** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  fetch_monetization_metrics:
+    name: Fetch monetization metrics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_monetization_metrics.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
+          subject: '❌ fetch_monetization_metrics failed'
+          from: jvillarreal0991@gmail.com
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **fetch_monetization_metrics** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  fetch_trending_videos:
+    name: Fetch trending videos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_trending_videos.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
+          subject: '❌ fetch_trending_videos failed'
+          from: jvillarreal0991@gmail.com
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **fetch_trending_videos** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  fetch_search_trends:
+    name: Fetch search trends
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - run: |
+          pip install pytrends
+          python scripts/fetch_search_trends.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CHANNEL_NAME:         ${{ secrets.CHANNEL_NAME }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
+          subject: '❌ fetch_search_trends failed'
+          from: jvillarreal0991@gmail.com
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **fetch_search_trends** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 
