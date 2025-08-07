@@ -69,9 +69,8 @@ def main():
         save_trends(sb, channel_results, f"canal-{region_name}")
         time.sleep(2)
         
-        # Tendencias generales
-        pytrends.build_payload(kw_list=[], geo=region_code)
-        trends = pytrends.trending_searches()
+        # Tendencias generales (corregido)
+        trends = pytrends.trending_searches(pn=region_code)
         save_trends(sb, trends.to_dict(orient="records"), region_name)
         time.sleep(2)
     
