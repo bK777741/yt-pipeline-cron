@@ -11,8 +11,8 @@ from supabase import create_client, Client
 
 def load_env():
     load_dotenv()
-    supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
+    supabase_url = os.environ["SUPABASE_URL"].strip()
+    supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
     return supabase_url, supabase_key
 
 def init_supabase(supabase_url, supabase_key):
@@ -20,16 +20,13 @@ def init_supabase(supabase_url, supabase_key):
 
 def purge_table(sb: Client, table: str, date_field: str, days: int):
     threshold = datetime.utcnow() - timedelta(days=days)
-    # Convierte threshold a texto ISO si tu columna es timestamp
     sb.table(table).delete().lt(date_field, threshold.isoformat()).execute()
 
 def main():
     supabase_url, supabase_key = load_env()
     sb = init_supabase(supabase_url, supabase_key)
 
-    # Purga vídeos importados hace más de 60 días
     purge_table(sb, "videos", "imported_at", 60)
-    # Purga comentarios importados hace más de 60 días
     purge_table(sb, "comments", "checked_at", 60)
 
     print("[purge_buffer] Purga completada (>60 días)")
