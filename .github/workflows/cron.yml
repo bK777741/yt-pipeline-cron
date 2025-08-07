@@ -20,6 +20,9 @@ jobs:
   import_daily:
     name: Import daily videos
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -33,7 +36,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run import_daily.py
-        run: python scripts/import_daily.py
+        run: python ./scripts/import_daily.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -46,32 +49,33 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ import_daily failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Import daily videos'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **import_daily** ha fallado.
+            El job **Import daily videos** ha fallado.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   import_captions:
     name: Import captions
     runs-on: ubuntu-latest
     needs: import_daily
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/import_captions.py
+      - name: Run import_captions.py
+        run: python ./scripts/import_captions.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -82,31 +86,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ import_captions failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Import captions'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **import_captions** ha fallado.
+            El job **Import captions** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   reconcile_comments:
     name: Reconcile comments
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/reconcile_comments.py
+      - name: Run reconcile_comments.py
+        run: python ./scripts/reconcile_comments.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -117,31 +122,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ reconcile_comments failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Reconcile comments'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **reconcile_comments** ha fallado.
+            El job **Reconcile comments** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   purge_buffer:
     name: Purge buffer
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/purge_buffer.py
+      - name: Run purge_buffer.py
+        run: python ./scripts/purge_buffer.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -149,31 +155,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ purge_buffer failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Purge buffer'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **purge_buffer** ha fallado.
+            El job **Purge buffer** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   maint_metrics:
     name: Maintain metrics
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/maint_metrics.py
+      - name: Run maint_metrics.py
+        run: python ./scripts/maint_metrics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -184,31 +191,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ maint_metrics failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Maintain metrics'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **maint_metrics** ha fallado.
+            El job **Maintain metrics** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_video_analytics:
     name: Fetch video analytics
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/fetch_video_analytics.py
+      - name: Run fetch_video_analytics.py
+        run: python ./scripts/fetch_video_analytics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -219,31 +227,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ fetch_video_analytics failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Fetch video analytics'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **fetch_video_analytics** ha fallado.
+            El job **Fetch video analytics** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_monetization_metrics:
     name: Fetch monetization metrics
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/fetch_monetization_metrics.py
+      - name: Run fetch_monetization_metrics.py
+        run: python ./scripts/fetch_monetization_metrics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -254,31 +263,32 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ fetch_monetization_metrics failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Fetch monetization metrics'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **fetch_monetization_metrics** ha fallado.
+            El job **Fetch monetization metrics** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_trending_videos:
     name: Fetch trending videos
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: python scripts/fetch_trending_videos.py
+      - name: Run fetch_trending_videos.py
+        run: python ./scripts/fetch_trending_videos.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -289,33 +299,34 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ fetch_trending_videos failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Fetch trending videos'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **fetch_trending_videos** ha fallado.
+            El job **Fetch trending videos** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_search_trends:
     name: Fetch search trends
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - run: pip install -r requirements.txt
-      - run: |
+      - name: Run fetch_search_trends.py
+        run: |
           pip install pytrends
-          python scripts/fetch_search_trends.py
+          python ./scripts/fetch_search_trends.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
@@ -327,19 +338,16 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.SMTP_USER }}
-          password: ${{ env.SMTP_PASS }}
-          subject: '❌ fetch_search_trends failed'
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ Pipeline fallida: Fetch search trends'
           from: jvillarreal0991@gmail.com
-          to: jvillarreal0991@gmail.com
+          to: ${{ secrets.TO_ADDRESS }}
           body: |
-            El job **fetch_search_trends** ha fallado.
+            El job **Fetch search trends** ha fallado.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 
