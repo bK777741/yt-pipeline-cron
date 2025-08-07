@@ -51,7 +51,7 @@ def save_trending(sb, videos):
             "like_count": stats.get("likeCount"),
             "comment_count": stats.get("commentCount"),
             "duration": video["contentDetails"]["duration"]
-        }, on_conflict=["video_id", "run_date"]).execute()
+        }, on_conflict="video_trending_video_id_run_date_key").execute()
 
 def main():
     creds, supabase_url, supabase_key = load_env()
