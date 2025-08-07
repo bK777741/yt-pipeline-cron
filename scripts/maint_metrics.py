@@ -6,13 +6,11 @@ Actualiza métricas de los últimos 50 vídeos importados.
 
 import os
 from datetime import datetime
-from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
 
 def load_env():
-    load_dotenv()
     creds = Credentials(
         token=None,
         refresh_token=os.environ["YT_REFRESH_TOKEN"].strip(),
