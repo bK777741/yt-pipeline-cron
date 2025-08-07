@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 import_daily.py
-Trae hasta DAILY_VIDEO_BATCH vídeos nuevos de YouTube y los guarda en Supabase.
+Trae vídeos nuevos de YouTube y guarda hashtags + duración.
 """
-
 import os
+import re
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -13,10 +13,7 @@ from googleapiclient.discovery import build
 from supabase import create_client, Client
 
 def load_env():
-    # Carga variables de entorno desde .env (o desde GitHub Secrets en Actions)
     load_dotenv()
-
-    # Credenciales de YouTube desde variables de entorno
     creds = Credentials(
         token=None,
         refresh_token=os.environ["YT_REFRESH_TOKEN"],
@@ -24,36 +21,27 @@ def load_env():
         client_secret=os.environ["YT_CLIENT_SECRET"],
         token_uri="https://oauth2.googleapis.com/token",
     )
-
-    # URL y clave de Supabase desde variables de entorno
     supabase_url = os.environ["SUPABASE_URL"]
     supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
-
-    # Número de vídeos a traer por día (default 20)
     batch = int(os.environ.get("DAILY_VIDEO_BATCH") or 20)
-
-    # ID de tu canal de YouTube:
-    # se intenta leer CHANNEL_ID, pero si no existe, usa directamente este valor:
-    DEFAULT_CHANNEL_ID = "UCWkGLaq5XxtF_r-0DKGZh4A"
-    channel_id = os.environ.get("CHANNEL_ID") or DEFAULT_CHANNEL_ID
-
+    channel_id = os.environ.get("CHANNEL_ID") or "UCWkGLaq5XxtF_r-0DKGZh4A"
     return creds, supabase_url, supabase_key, batch, channel_id
 
 def init_clients(creds, supabase_url, supabase_key):
-    # Inicializa cliente de YouTube y de Supabase
     yt = build("youtube", "v3", credentials=creds)
     sb: Client = create_client(supabase_url, supabase_key)
     return yt, sb
 
 def get_today_window():
-    # Calcula el rango de “hoy” en zona America/Lima
     tz = pytz.timezone("America/Lima")
     now = datetime.now(tz)
     midnight = tz.localize(datetime(now.year, now.month, now.day))
     return midnight, now
 
+def extract_hashtags(description):
+    return list(set(re.findall(r"#(\w+)", description))) if description else []
+
 def fetch_videos(yt, channel_id, published_after, max_results):
-    # Llama a la API de YouTube para buscar vídeos publicados tras `published_after`
     req = yt.search().list(
         part="id",
         channelId=channel_id,
@@ -63,38 +51,47 @@ def fetch_videos(yt, channel_id, published_after, max_results):
         maxResults=max_results,
     )
     resp = req.execute()
-    # Devuelve lista de IDs de vídeo
-    return [item["id"]["videoId"] for item in resp.get("items", [])]
+    video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
+    
+    # Obtener detalles completos (snippet, contentDetails)
+    if video_ids:
+        details_req = yt.videos().list(
+            id=",".join(video_ids),
+            part="snippet,contentDetails"
+        )
+        details_resp = details_req.execute()
+        return [
+            {
+                "video_id": item["id"],
+                "description": item["snippet"]["description"],
+                "hashtags": extract_hashtags(item["snippet"]["description"]),
+                "duration": item["contentDetails"]["duration"]
+            }
+            for item in details_resp.get("items", [])
+        ]
+    return []
 
-def upsert_videos(sb: Client, video_ids):
-    # Inserta o actualiza registros en la tabla "videos" de Supabase
-    rows = [{"video_id": vid, "imported_at": "now()"} for vid in video_ids]
+def upsert_videos(sb: Client, videos):
+    rows = []
+    for video in videos:
+        rows.append({
+            "video_id": video["video_id"],
+            "hashtags": video["hashtags"],
+            "duration": video["duration"],
+            "imported_at": "now()"
+        })
     sb.table("videos").upsert(rows, on_conflict=["video_id"]).execute()
 
 def main():
-    # 1) Carga configuración
     creds, supabase_url, supabase_key, batch, channel_id = load_env()
-    # 2) Inicializa clientes
     yt, sb = init_clients(creds, supabase_url, supabase_key)
-    # 3) Calcula ventana de hoy
     start, end = get_today_window()
-
-    # 4) Trae vídeos nuevos de hoy
-    videos = fetch_videos(
-        yt,
-        channel_id=channel_id,
-        published_after=start,
-        max_results=batch
-    )
-
-    # 5) (Opcional) lógica de backlog si videos < batch
-    #    …a implementar después…
-
-    # 6) Inserta/actualiza en Supabase
+    
+    videos = fetch_videos(yt, channel_id, start, batch)
+    
     if videos:
         upsert_videos(sb, videos)
-
-    # 7) Informe en consola
+    
     print(f"[import_daily] Vídeos procesados: {len(videos)}")
 
 if __name__ == "__main__":
