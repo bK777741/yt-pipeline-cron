@@ -64,7 +64,6 @@ schedule: "0 9 * * *" → Maintain metrics (04:00 Lima)
 También lo puedes lanzar manualmente desde la pestaña Actions → YouTube → Supabase pipeline → Run workflow.
 
 Licencia
-MIT © tu_nombre_aquí
+MIT © Grupo Destinos Oficial
 
-Copiar
-Editar
+
