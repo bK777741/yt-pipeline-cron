@@ -41,11 +41,14 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
           subject: '❌ import_daily failed'
           from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
@@ -73,11 +76,14 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
           subject: '❌ reconcile_comments failed'
           from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
@@ -102,11 +108,14 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
           subject: '❌ purge_buffer failed'
           from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
@@ -134,11 +143,14 @@ jobs:
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
+          username: ${{ env.SMTP_USER }}
+          password: ${{ env.SMTP_PASS }}
           subject: '❌ maint_metrics failed'
           from: jvillarreal0991@gmail.com
           to: jvillarreal0991@gmail.com
