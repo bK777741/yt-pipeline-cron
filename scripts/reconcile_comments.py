@@ -6,13 +6,11 @@ Sincroniza el estado de los comentarios borrados o moderados de YouTube (marca i
 
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
 
 def load_env():
-    load_dotenv()
     creds = Credentials(
         token=None,
         refresh_token=os.environ["YT_REFRESH_TOKEN"].strip(),
@@ -60,4 +58,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
