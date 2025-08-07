@@ -27,20 +27,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Debug environment
-        run: |
-          echo "=== ENTORNO IMPORT_DAILY ==="
-          echo "CHANNEL_ID = '$CHANNEL_ID'"
-          echo "DAILY_VIDEO_BATCH = '$DAILY_VIDEO_BATCH'"
-        env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
-          CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
-
       - name: Run import_daily.py
         run: python scripts/import_daily.py
         env:
@@ -51,6 +37,20 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
           CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ import_daily failed'
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **import_daily** ha fallado.
+            Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   reconcile_comments:
     name: Reconcile comments
@@ -66,6 +66,20 @@ jobs:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ reconcile_comments failed'
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **reconcile_comments** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   purge_buffer:
     name: Purge buffer
     runs-on: ubuntu-latest
@@ -80,6 +94,20 @@ jobs:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ purge_buffer failed'
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **purge_buffer** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   maint_metrics:
     name: Maintain metrics
     runs-on: ubuntu-latest
@@ -93,6 +121,21 @@ jobs:
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          subject: '❌ maint_metrics failed'
+          to: jvillarreal0991@gmail.com
+          body: |
+            El job **maint_metrics** ha fallado.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
 
 
 
