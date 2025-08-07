@@ -69,9 +69,22 @@ def main():
         save_trends(sb, channel_results, f"canal-{region_name}")
         time.sleep(2)
         
-        # Tendencias generales (corregido)
-        trends = pytrends.trending_searches(pn=region_code)
-        save_trends(sb, trends.to_dict(orient="records"), region_name)
+        # Tendencias generales (convertidas a lista de strings)
+        try:
+            trends_index = pytrends.trending_searches(pn=region_code)
+        except Exception as e:
+            print(f"[fetch_search_trends] Warning, fallo trending_searches({region_code}): {e}")
+            continue
+        trends_list = trends_index.tolist()
+        # Guardar cada término como registro
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        for idx, term in enumerate(trends_list):
+            sb.table("search_trends").upsert({
+                "query": term,
+                "run_date": today,
+                "region": region_name,
+                "rank": idx + 1
+            }, on_conflict=["query","run_date","region"]).execute()
         time.sleep(2)
     
     print("[fetch_search_trends] Tendencias guardadas")
