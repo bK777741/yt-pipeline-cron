@@ -155,15 +155,16 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install nltk==3.8.1
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Run database migration
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Run database migrations
         run: |
-          HOST=$(echo ${{ secrets.SUPABASE_URL }} | awk -F/ '{print $3}')
-          PROJECT_REF=$(echo $HOST | awk -F. '{print $1}')
-          DB_HOST="db.$PROJECT_REF.supabase.co"
-          export PGPASSWORD=${{ secrets.SUPABASE_SERVICE_KEY }}
-          psql -h "$DB_HOST" -p 5432 -d postgres -U postgres -f scripts/migrations/20250808_add_is_spam_to_comments.sql
+          npm install -g supabase
+          supabase db push \
+            --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
+            --db-url "${{ secrets.SUPABASE_DB_URL }}"
       - name: Run fetch_comment_sentiment.py
         run: python ./scripts/fetch_comment_sentiment.py
         env:
