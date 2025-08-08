@@ -57,7 +57,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -95,7 +95,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -132,7 +132,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -166,7 +166,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -203,7 +203,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -240,7 +240,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -277,7 +277,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -285,6 +285,7 @@ jobs:
   fetch_trending_videos:
     name: Fetch trending videos
     runs-on: ubuntu-latest
+    continue-on-error: true  # Continuar incluso si falla
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -314,7 +315,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -354,10 +355,9 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.TO_ADDRESS }}
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
 
 
