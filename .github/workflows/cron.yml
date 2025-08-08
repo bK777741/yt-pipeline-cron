@@ -161,7 +161,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          echo "DEBUG: DATABASE_URL starts with: ${DATABASE_URL:0:12}…"
+          echo "DEBUG: DATABASE_URL starts with: ${DATABASE_URL:0:12}"
           echo "Applying migration: add is_spam to comments…"
           psql --dbname="$DATABASE_URL" --echo-all --set ON_ERROR_STOP=1 <<EOF
 ALTER TABLE comments
@@ -445,4 +445,3 @@ EOF
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
