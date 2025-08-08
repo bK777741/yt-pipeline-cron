@@ -10,6 +10,7 @@ from pytrends.request import TrendReq
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
+from googleapiclient.errors import HttpError  # Importar para manejar cuotas
 
 REGIONS = {
     "latam-pe": "PE",
@@ -35,15 +36,22 @@ def load_env():
     return creds, supabase_url, supabase_key, channel_name
 
 def fetch_youtube_trends(yt, query, region):
-    req = yt.search().list(
-        q=query,
-        part="snippet",
-        type="video",
-        order="relevance",
-        maxResults=20,
-        regionCode=region
-    )
-    return req.execute().get("items", [])
+    try:
+        req = yt.search().list(
+            q=query,
+            part="snippet",
+            type="video",
+            order="relevance",
+            maxResults=20,
+            regionCode=region
+        )
+        return req.execute().get("items", [])
+    except HttpError as e:
+        if "quotaExceeded" in str(e):
+            print("[fetch_search_trends] quotaExceeded, salto")
+            return []
+        else:
+            raise
 
 def save_trends(sb, trends, region):
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -66,15 +74,17 @@ def main():
     for region_name, region_code in REGIONS.items():
         # Búsquedas directas al canal
         channel_results = fetch_youtube_trends(yt, channel_name, region_code)
-        save_trends(sb, channel_results, f"canal-{region_name}")
-        time.sleep(2)
+        if channel_results:
+            save_trends(sb, channel_results, f"canal-{region_name}")
+            time.sleep(2)
         
-        # Tendencias generales (convertidas a lista de strings)
+        # Tendencias generales
         try:
             trends_index = pytrends.trending_searches(pn=region_code)
         except Exception as e:
             print(f"[fetch_search_trends] Warning, fallo trending_searches({region_code}): {e}")
             continue
+            
         trends_list = trends_index.tolist()
         # Guardar cada término como registro
         today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -88,6 +98,3 @@ def main():
         time.sleep(2)
     
     print("[fetch_search_trends] Tendencias guardadas")
-
-if __name__ == "__main__":
-    main()
