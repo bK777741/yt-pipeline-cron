@@ -8,6 +8,7 @@ from datetime import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
+from postgrest.exceptions import APIError  # Importar para manejar errores
 
 def load_env():
     creds = Credentials(
@@ -40,7 +41,7 @@ def save_trending(sb, videos):
     for idx, video in enumerate(videos):
         snippet = video["snippet"]
         stats = video["statistics"]
-        sb.table("video_trending").upsert({
+        data = {
             "video_id": video["id"],
             "run_date": today,
             "rank": idx + 1,
@@ -51,7 +52,13 @@ def save_trending(sb, videos):
             "like_count": stats.get("likeCount"),
             "comment_count": stats.get("commentCount"),
             "duration": video["contentDetails"]["duration"]
-        }, on_conflict=["video_id", "run_date"]).execute()
+        }
+        try:
+            sb.table("video_trending").upsert(data, 
+                on_conflict=["video_id", "run_date"]
+            ).execute()
+        except APIError as e:
+            print(f"[fetch_trending_videos] Error en upsert: {e}")
 
 def main():
     creds, supabase_url, supabase_key = load_env()
