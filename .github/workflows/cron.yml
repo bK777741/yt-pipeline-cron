@@ -163,10 +163,10 @@ jobs:
         run: |
           echo "DEBUG: DATABASE_URL starts with: ${DATABASE_URL:0:12}…"
           echo "Applying migration: add is_spam to comments…"
-          psql --dbname="$DATABASE_URL" --echo-all --set ON_ERROR_STOP=1 << 'EOF'
-          ALTER TABLE comments
-            ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
-          EOF
+          psql --dbname="$DATABASE_URL" --echo-all --set ON_ERROR_STOP=1 <<EOF
+ALTER TABLE comments
+  ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
+EOF
       - name: Run fetch_comment_sentiment.py
         run: python ./scripts/fetch_comment_sentiment.py
         env:
