@@ -161,8 +161,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          echo "DEBUG: DATABASE_URL starts with: ${DATABASE_URL:0:12}…"
           echo "Applying migration: add is_spam to comments…"
-          psql "$DATABASE_URL" << 'EOF'
+          psql --dbname="$DATABASE_URL" --echo-all --set ON_ERROR_STOP=1 << 'EOF'
           ALTER TABLE comments
             ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
           EOF
