@@ -154,16 +154,6 @@ jobs:
           pip install nltk==3.8.1
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Run database migrations
-        env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
-          PGSSLMODE: require            # ← fuerza TLS; psql ya no mira la URL
-        run: |
-          echo "DEBUG: DATABASE_URL starts with: ${DATABASE_URL:0:12}"
-          psql --dbname="$DATABASE_URL" --echo-all --set ON_ERROR_STOP=1 <<EOF
-          ALTER TABLE comments
-            ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
-          EOF
       - name: Run fetch_comment_sentiment.py
         run: python ./scripts/fetch_comment_sentiment.py
         env:
