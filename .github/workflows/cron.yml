@@ -9,10 +9,12 @@ on:
     - cron: "0 7 * * *"     # import_daily (02:00 Lima)
     - cron: "15 7 * * *"    # import_captions (02:15 Lima)
     - cron: "30 7 * * *"    # reconcile_comments (02:30 Lima)
+    - cron: "45 7 * * *"    # sentiment_analysis (02:45 Lima)
     - cron: "0 8 * * *"     # purge_buffer (03:00 Lima)
     - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
     - cron: "0 10 * * *"    # fetch_video_analytics (05:00 Lima)
     - cron: "0 11 * * *"    # fetch_monetization_metrics (06:00 Lima)
+    - cron: "30 10 * * *"   # compute_posting_schedule (05:30 Lima)
     - cron: "30 11 * * *"   # fetch_trending_videos (06:30 Lima)
     - cron: "45 11 * * *"   # fetch_search_trends (06:45 Lima)
 
@@ -118,6 +120,44 @@ jobs:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  sentiment_analysis:
+    name: Analyze comment sentiment
+    runs-on: ubuntu-latest
+    needs: reconcile_comments
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install nltk==3.8.1
+      - name: Run fetch_comment_sentiment.py
+        run: python ./jobs/fetch_comment_sentiment.py
+        env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
@@ -282,10 +322,44 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  compute_posting_schedule:
+    name: Compute posting schedule
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - name: Run compute_posting_schedule.py
+        run: python ./jobs/compute_posting_schedule.py
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   fetch_trending_videos:
     name: Fetch trending videos
     runs-on: ubuntu-latest
-    continue-on-error: true  # Continuar incluso si falla
+    continue-on-error: true
     defaults:
       run:
         working-directory: ${{ github.workspace }}
