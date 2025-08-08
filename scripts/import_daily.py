@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
+from googleapiclient.errors import HttpError  # Importar para manejar cuotas
 
 def load_env():
     load_dotenv()
@@ -42,24 +43,39 @@ def extract_hashtags(description):
     return list(set(re.findall(r"#(\w+)", description))) if description else []
 
 def fetch_videos(yt, channel_id, published_after, max_results):
-    req = yt.search().list(
-        part="id",
-        channelId=channel_id,
-        publishedAfter=published_after.isoformat(),
-        order="date",
-        type="video",
-        maxResults=max_results,
-    )
-    resp = req.execute()
+    try:
+        req = yt.search().list(
+            part="id",
+            channelId=channel_id,
+            publishedAfter=published_after.isoformat(),
+            order="date",
+            type="video",
+            maxResults=max_results,
+        )
+        resp = req.execute()
+    except HttpError as e:
+        if "quotaExceeded" in str(e):
+            print("[import_daily] quotaExceeded, salto")
+            return []
+        else:
+            raise
+
     video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
     
-    # Obtener detalles completos (snippet, contentDetails)
+    # Obtener detalles completos
     if video_ids:
-        details_req = yt.videos().list(
-            id=",".join(video_ids),
-            part="snippet,contentDetails"
-        )
-        details_resp = details_req.execute()
+        try:
+            details_req = yt.videos().list(
+                id=",".join(video_ids),
+                part="snippet,contentDetails"
+            )
+            details_resp = details_req.execute()
+        except HttpError as e:
+            if "quotaExceeded" in str(e):
+                print("[import_daily] quotaExceeded en detalles, salto")
+                return []
+            else:
+                raise
         return [
             {
                 "video_id": item["id"],
