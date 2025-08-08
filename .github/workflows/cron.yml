@@ -156,7 +156,7 @@ jobs:
           pip install -r requirements.txt
           pip install nltk==3.8.1
       - name: Run fetch_comment_sentiment.py
-        run: python ./jobs/fetch_comment_sentiment.py
+        run: python ./scripts/fetch_comment_sentiment.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -335,7 +335,7 @@ jobs:
           python-version: "3.x"
       - run: pip install -r requirements.txt
       - name: Run compute_posting_schedule.py
-        run: python ./jobs/compute_posting_schedule.py
+        run: python ./scripts/compute_posting_schedule.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -433,5 +433,4 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
 
