@@ -157,22 +157,15 @@ jobs:
           pip install nltk==3.8.1
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
       - name: Run database migrations
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          npm install -g @supabase/cli
-          supabase --version
-          HOST=$(echo ${{ secrets.SUPABASE_URL }} | awk -F/ '{print $3}')
-          PROJECT_REF=$(echo $HOST | awk -F. '{print $1}')
-          DB_HOST="db.$PROJECT_REF.supabase.co"
-          DB_URL="postgresql://postgres:${{ secrets.SUPABASE_SERVICE_KEY }}@$DB_HOST:5432/postgres"
-          supabase db push \
-            --project-ref "$PROJECT_REF" \
-            --db-url "$DB_URL" \
-            --migrations-dir ./scripts/migrations
+          echo "Applying migration: add is_spam to comments…"
+          psql "$DATABASE_URL" << 'EOF'
+          ALTER TABLE comments
+            ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
+          EOF
       - name: Run fetch_comment_sentiment.py
         run: python ./scripts/fetch_comment_sentiment.py
         env:
