@@ -10,3 +10,6 @@ numpy
 scipy
 nltk==3.8.1
 pytrends
+opencv-python-headless==4.9.0.80
+Pillow==10.3.0
+imagehash==4.3.1
