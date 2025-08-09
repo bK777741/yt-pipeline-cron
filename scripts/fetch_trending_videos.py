@@ -258,10 +258,10 @@ def fetch_channel_stats(yt, channel_id):
     return int(stats.get("subscriberCount", 0))
 
 def pct(values, p):
-    if not values: 
+    if not values:
         return 0.0
     vs = sorted(values)
-    i = max(0, min(len(vs)-1, int(round((p/100.0)*(len(vs)-1))))
+    i = max(0, min(len(vs) - 1, int(round((p / 100.0) * (len(vs) - 1)))))
     return vs[i]
 
 def apply_dynamic_viral_filters(items):
