@@ -357,6 +357,13 @@ jobs:
     defaults:
       run:
         working-directory: ${{ github.workspace }}
+    env:
+      REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
+      ALLOWED_LANGS: "es,en,hi,pt"
+      LONG_MIN_SECONDS: 180
+      MAX_SHORTS_PER_DAY: 20
+      MAX_LONGS_PER_DAY: 15
+      PAGES_PER_REGION: 1
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -366,11 +373,17 @@ jobs:
       - name: Run fetch_trending_videos.py
         run: python ./scripts/fetch_trending_videos.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          YOUTUBE_API_KEY:     ${{ secrets.YOUTUBE_API_KEY }}
+          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CHANNEL_ID:          ${{ secrets.CHANNEL_ID }}
+
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: trending-report
+          path: ./trending_report_*.md
 
       - name: Notify failure by email
         if: failure()
@@ -460,4 +473,5 @@ jobs:
           to: ${{ env.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
