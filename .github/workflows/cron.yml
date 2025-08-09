@@ -17,6 +17,7 @@ on:
     - cron: "30 10 * * *"   # compute_posting_schedule (05:30 Lima)
     - cron: "30 11 * * *"   # fetch_trending_videos (06:30 Lima)
     - cron: "45 11 * * *"   # fetch_search_trends (06:45 Lima)
+    - cron: "0 14 1,16 * *" # policy_monitor (09:00 Lima, días 1 y 16)
 
 jobs:
   import_daily:
@@ -410,6 +411,39 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CHANNEL_NAME:         ${{ secrets.CHANNEL_NAME }}
 
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  policy_monitor:
+    name: Fetch YouTube policies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - name: Run fetch_youtube_policies.py
+        run: python ./scripts/fetch_youtube_policies.py
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CONTACT_EMAIL:        ${{ secrets.CONTACT_EMAIL }}
+          POLICY_URLS:          ${{ secrets.POLICY_URLS }}
+          POLICY_MAX_CHARS:     "12000"
+      
       - name: Notify failure by email
         if: failure()
         uses: dawidd6/action-send-mail@v3
