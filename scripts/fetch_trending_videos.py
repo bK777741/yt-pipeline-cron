@@ -54,9 +54,9 @@ def load_env():
     supabase_url = os.environ["SUPABASE_URL"].strip()
     supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
     channel_id = os.environ["CHANNEL_ID"].strip()
-    
-    region_codes = os.getenv("REGION_CODES", "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT").split(',')
-    allowed_langs = os.getenv("ALLOWED_LANGS", "es,en,hi,pt").split(',')
+
+    region_codes = [x.strip().upper() for x in os.getenv("REGION_CODES", "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT").split(",") if x.strip()]
+    allowed_langs = {x.strip().split("-")[0].lower() for x in os.getenv("ALLOWED_LANGS", "es,en,hi,pt").split(",") if x.strip()}
     long_min_seconds = int(os.getenv("LONG_MIN_SECONDS", 180))
     max_shorts = int(os.getenv("MAX_SHORTS_PER_DAY", 20))
     max_longs = int(os.getenv("MAX_LONGS_PER_DAY", 15))
@@ -138,7 +138,7 @@ def fetch_trending_page(yt, region, page_token=None, max_results=50):
 
 def already_in_db(sb, video_id):
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    res = sb.table("trending_videos").select("video_id").eq("video_id", video_id).eq("run_date", today).execute()
+    res = sb.table("video_trending").select("video_id").eq("video_id", video_id).eq("run_date", today).execute()
     return len(res.data) > 0
 
 def compute_vph(video_info):
@@ -194,18 +194,23 @@ def compute_score(video_info, format, channel_profile, region_count, freshness_h
     
     return score
 
+def topic_key_from_title(title):
+    t = re.sub(r"[^a-záéíóúñü0-9\s]", " ", (title or "").lower())
+    t = re.sub(r"\s+", " ", t).strip()
+    return " ".join(t.split()[:8])
+
 def process_video(video, region, channel_profile, allowed_langs, long_min_seconds):
     snippet = video["snippet"]
-    stats = video["statistics"]
+    stats = video.get("statistics", {})
     content = video["contentDetails"]
-    status = video["status"]
     
-    # Filtrar lives y premieres
-    if status.get("liveBroadcastContent") in ["live", "upcoming"]:
+    # DESCARTAR lives/premieres
+    if (snippet.get("liveBroadcastContent") or "none") != "none":
         return None
     
-    # Filtrar por idioma
-    if snippet.get("defaultAudioLanguage") not in allowed_langs and snippet.get("defaultLanguage") not in allowed_langs:
+    # Filtrar por idioma (aceptar si no viene idioma)
+    lang = (snippet.get("defaultAudioLanguage") or snippet.get("defaultLanguage") or "").split("-")[0].lower()
+    if lang and lang not in allowed_langs:
         return None
     
     # Duración y formato
@@ -240,7 +245,9 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         "duration_sec": duration_sec,
         "format": video_format,
         "similarity": similarity,
-        "topic_key": snippet.get("categoryId", "0")
+        "topic_key": topic_key_from_title(snippet["title"]),
+        "category_id": snippet.get("categoryId"),
+        "tags": snippet.get("tags", [])
     }
 
 def fetch_channel_stats(yt, channel_id):
@@ -250,17 +257,70 @@ def fetch_channel_stats(yt, channel_id):
     stats = res["items"][0]["statistics"]
     return int(stats.get("subscriberCount", 0))
 
-def apply_viral_filters(video_info, format):
-    vph = video_info["vph"]
-    eng = video_info["engagement"]
+def pct(values, p):
+    if not values: 
+        return 0.0
+    vs = sorted(values)
+    i = max(0, min(len(vs)-1, int(round((p/100.0)*(len(vs)-1))))
+    return vs[i]
+
+def apply_dynamic_viral_filters(items):
+    vph_s, eng_s, vph_l, eng_l = [], [], [], []
+    for it in items:
+        it["vph"] = compute_vph(it)
+        it["engagement"] = compute_engagement(it)
+        if it["format"] == "short":
+            vph_s.append(it["vph"])
+            eng_s.append(it["engagement"])
+        elif it["format"] == "long":
+            vph_l.append(it["vph"])
+            eng_l.append(it["engagement"])
     
-    # Umbrales virales por formato
-    thresholds = {
-        "short": {"vph": 5000, "eng": 0.05},
-        "long": {"vph": 2000, "eng": 0.08}
+    thr = {
+        "short": {"vph": pct(vph_s, 80), "eng": pct(eng_s, 60)},
+        "long": {"vph": pct(vph_l, 80), "eng": pct(eng_l, 60)},
     }
     
-    return vph >= thresholds[format]["vph"] and eng >= thresholds[format]["eng"]
+    kept = []
+    for it in items:
+        t = thr[it["format"]]
+        if it["vph"] >= t["vph"] and it["engagement"] >= t["eng"]:
+            kept.append(it)
+            
+    return kept, thr
+
+def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allowed_langs, long_min_seconds, needed_total):
+    agg = {}  # video_id -> item con _regions
+    for region in region_codes:
+        next_page = None
+        for _ in range(pages_per_region):
+            response = fetch_trending_page(yt, region, next_page)
+            videos = response.get("items", [])
+            next_page = response.get("nextPageToken")
+            
+            for video in videos:
+                video_info = process_video(
+                    video, region, channel_profile, 
+                    allowed_langs, long_min_seconds
+                )
+                
+                if not video_info:
+                    continue
+                
+                video_id = video_info["video_id"]
+                base = agg.get(video_id)
+                if not base:
+                    video_info["_regions"] = {region}
+                    agg[video_id] = video_info
+                else:
+                    base["_regions"].add(region)
+            
+            if not next_page or len(agg) >= needed_total:
+                break
+        if len(agg) >= needed_total:
+            break
+            
+    return list(agg.values())
 
 def select_top_candidates(candidates, max_shorts, max_longs):
     candidates.sort(key=lambda x: x["score"], reverse=True)
@@ -306,34 +366,48 @@ def select_top_candidates(candidates, max_shorts, max_longs):
 
 def save_to_supabase(sb, videos):
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    records = []
-    
-    for video in videos:
-        records.append({
-            "video_id": video["video_id"],
+    rows = []
+    for i, v in enumerate(videos, start=1):
+        rows.append({
+            "video_id": v["video_id"],
             "run_date": today,
-            "region": video["region"],
-            "rank": video["rank"],
-            "title": video["title"],
-            "channel_title": video["channel_title"],
-            "published_at": video["published_at"],
-            "view_count": video["view_count"],
-            "like_count": video["like_count"],
-            "comment_count": video["comment_count"],
-            "duration": video["duration"],
-            "format": video["format"],
-            "score": video["score"],
-            "vph": video["vph"],
-            "engagement": video["engagement"],
-            "similarity": video["similarity"],
-            "channel_subscribers": video["channel_subscribers"],
-            "topic_key": video["topic_key"]
+            "rank": i,
+            "title": v["title"],
+            "channel_title": v["channel_title"],
+            "published_at": v["published_at"],
+            "view_count": int(v.get("view_count", 0) or 0),
+            "like_count": int(v.get("like_count", 0) or 0),
+            "comment_count": int(v.get("comment_count", 0) or 0),
+            "category_id": v.get("category_id"),
+            "tags": v.get("tags", []),
+            "duration": v["duration"],
         })
-    
+
+    # Intentar upsert con ignore_duplicates
     try:
-        sb.table("trending_videos").upsert(records, on_conflict="video_id,run_date,region").execute()
-    except APIError as e:
-        print(f"[fetch_trending_videos] Error en upsert: {e}")
+        sb.table("video_trending").upsert(
+            rows,
+            on_conflict="video_id,run_date",
+            ignore_duplicates=True
+        ).execute()
+        return
+    except TypeError:
+        pass  # Fallback si no soporta ignore_duplicates
+    
+    # Insertar uno por uno con pre-chequeo
+    for row in rows:
+        if not already_in_db(sb, row["video_id"]):
+            try:
+                sb.table("video_trending").insert(row).execute()
+            except APIError:
+                continue
+
+def enrich_with_channel_stats(yt, finalists):
+    for it in finalists:
+        try:
+            it["channel_subscribers"] = fetch_channel_stats(yt, it["channel_id"])
+        except Exception:
+            it["channel_subscribers"] = 0
 
 def generate_report(selected_videos, stats):
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -380,65 +454,42 @@ def main():
         "filtered": 0
     }
     
-    # Procesar regiones
-    candidates = []
-    for region in region_codes:
-        next_page = None
-        for _ in range(pages_per_region):
-            response = fetch_trending_page(yt, region, next_page)
-            videos = response.get("items", [])
-            next_page = response.get("nextPageToken")
-            
-            for video in videos:
-                stats["candidates"] += 1
-                video_info = process_video(
-                    video, region, channel_profile, 
-                    allowed_langs, long_min_seconds
-                )
-                
-                if not video_info:
-                    stats["filtered"] += 1
-                    continue
-                
-                stats["similarity_passed"] += 1
-                
-                # Calcular métricas
-                video_info["vph"] = compute_vph(video_info)
-                video_info["engagement"] = compute_engagement(video_info)
-                video_info["channel_subscribers"] = fetch_channel_stats(yt, video_info["channel_id"])
-                
-                # Aplicar filtros virales
-                if not apply_viral_filters(video_info, video_info["format"]):
-                    stats["filtered"] += 1
-                    continue
-                
-                stats["viral_passed"] += 1
-                candidates.append(video_info)
-            
-            if not next_page:
-                break
+    # Procesar regiones con dedup y early-stop
+    needed_total = (max_shorts + max_longs) * 3
+    candidates = collect_candidates(
+        yt, region_codes, pages_per_region, 
+        channel_profile, allowed_langs, long_min_seconds, needed_total
+    )
+    stats["candidates"] = len(candidates)
+    
+    # Aplicar filtros virales dinámicos
+    kept, thr = apply_dynamic_viral_filters(candidates)
+    stats["viral_passed"] = len(kept)
+    stats["filtered"] = stats["candidates"] - stats["viral_passed"]
+    
+    # Obtener estadísticas de canal solo para finalistas
+    enrich_with_channel_stats(yt, kept)
     
     # Calcular puntajes
-    region_counts = Counter(v["video_id"] for v in candidates)
     freshness = {}
-    for video in candidates:
+    for video in kept:
         pub_date = datetime.fromisoformat(video["published_at"].replace("Z", "+00:00"))
         freshness[video["video_id"]] = (datetime.utcnow() - pub_date).total_seconds() / 3600
     
-    topic_counts = Counter(v["topic_key"] for v in candidates)
+    topic_counts = Counter(v["topic_key"] for v in kept)
     
-    for video in candidates:
+    for video in kept:
         video["score"] = compute_score(
             video,
             video["format"],
             channel_profile,
-            region_counts[video["video_id"]],
+            len(video["_regions"]),
             freshness[video["video_id"]],
             topic_counts
         )
     
     # Seleccionar mejores candidatos
-    selected = select_top_candidates(candidates, max_shorts, max_longs)
+    selected = select_top_candidates(kept, max_shorts, max_longs)
     
     # Insertar en Supabase
     if selected:
