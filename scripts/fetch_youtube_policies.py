@@ -2,6 +2,7 @@ import os
 import re
 import hashlib
 import time
+import random
 import datetime as dt
 from urllib.parse import urlparse
 
@@ -14,58 +15,54 @@ MAX_CONTENT_LENGTH = int(os.getenv('POLICY_MAX_CHARS', '12000'))
 USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_EMAIL', '')})"
 POLICY_URLS = os.getenv('POLICY_URLS', '').split(',')
 
+# Mapa de categorías por ID
+ID_MAP = {
+    "9288567": "community",
+    "72851":   "monetization",
+    "1311392": "monetization",
+    "6162278": "ad_suitability",
+    "2797466": "copyright",
+    "2802032": "enforcement",
+    "9725604": "updates"
+}
+
 def get_content_hash(content: str) -> str:
     """Genera hash SHA-256 del contenido"""
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 def extract_category(url: str) -> str:
-    """Extrae categoría de política de la URL"""
-    categories = {
-        'community': 'community',
-        'monetization': 'monetization',
-        'ad_suitability': 'ad_suitability',
-        'copyright': 'copyright',
-        'enforcement': 'enforcement',
-        'updates': 'updates'
-    }
-    
-    path = urlparse(url).path.lower()
-    for key in categories:
-        if key in path:
-            return categories[key]
-    return 'other'
+    """Extrae categoría de política de la URL usando ID_MAP"""
+    m = re.search(r'/answer/(\d+)', url)
+    return ID_MAP.get(m.group(1), "community") if m else "community"
 
-def extract_relevant_text(soup: BeautifulSoup) -> str:
-    """Extrae texto relevante de la página"""
+def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
+    """Extrae texto relevante de la página con filtro para actualizaciones"""
     # Eliminar elementos no deseados
     for element in soup(['script', 'style', 'footer', 'nav']):
         element.decompose()
     
-    # Extraer encabezados y párrafos principales
+    current_year = dt.datetime.now().year
     content_parts = []
+    
     for tag in soup.find_all(['h1', 'h2', 'h3', 'p']):
         if tag.name.startswith('h'):
-            content_parts.append(f"\n{tag.get_text().strip()}\n")
+            text = tag.get_text().strip()
+            if text:
+                content_parts.append(f"\n{text}\n")
         else:
             text = tag.get_text().strip()
-            if text and len(text) > 30:  # Filtrar párrafos cortos
+            if text and len(text) > 30:
+                # Filtrar actualizaciones antiguas
+                if category == 'updates':
+                    year_matches = re.findall(r'\b(20\d{2})\b', text)
+                    if year_matches:
+                        latest_year = max(int(year) for year in year_matches)
+                        if current_year - latest_year > 2:
+                            continue
                 content_parts.append(text)
     
     full_text = '\n'.join(content_parts)
     return full_text[:MAX_CONTENT_LENGTH]
-
-def is_content_old(soup: BeautifulSoup) -> bool:
-    """Verifica si el contenido es mayor a 2 años"""
-    current_year = dt.datetime.now().year
-    text = soup.get_text()
-    
-    # Buscar años en el texto (ej: 2022, 2023)
-    year_matches = re.findall(r'\b(20\d{2})\b', text)
-    if year_matches:
-        latest_year = max(int(year) for year in year_matches)
-        return current_year - latest_year > 2
-    
-    return False
 
 def main():
     supabase: Client = create_client(
@@ -84,16 +81,10 @@ def main():
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Verificar antigüedad
-            if is_content_old(soup):
-                print(f"⚠️ Contenido viejo en {url}, omitiendo...")
-                continue
-                
-            # Procesar contenido
-            content = extract_relevant_text(soup)
-            content_hash = get_content_hash(content)
             category = extract_category(url)
+            content = extract_relevant_text(soup, category)
+            content_hash = get_content_hash(content)
+            now = dt.datetime.now(dt.timezone.utc).isoformat()
             
             # Verificar si ya existe este hash para esta URL
             existing = supabase.table('youtube_policies') \
@@ -103,24 +94,26 @@ def main():
                 .execute()
             
             if not existing.data:
-                # Insertar nuevo registro si hay cambios
+                # Insertar nuevo registro con cambios
                 supabase.table('youtube_policies').insert({
                     'policy_url': url,
                     'category': category,
                     'content_text': content,
-                    'content_hash': content_hash
+                    'content_hash': content_hash,
+                    'fetched_at': now,
+                    'last_checked_at': now
                 }).execute()
                 print(f"✅ Actualizada política: {url}")
             else:
                 # Actualizar fecha de verificación
                 supabase.table('youtube_policies') \
-                    .update({'last_checked_at': dt.datetime.now().isoformat()}) \
+                    .update({'last_checked_at': now}) \
                     .eq('id', existing.data[0]['id']) \
                     .execute()
                 print(f"☑️ Política sin cambios: {url}")
             
-            # Pausa antibaneo
-            time.sleep(4)
+            # Pausa antibaneo aleatoria
+            time.sleep(random.uniform(3, 5))
             
         except Exception as e:
             print(f"❌ Error procesando {url}: {str(e)}")
