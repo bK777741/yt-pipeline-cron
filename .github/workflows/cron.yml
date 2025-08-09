@@ -445,7 +445,9 @@ jobs:
           POLICY_MAX_CHARS:     "12000"
       
       - name: Notify failure by email
-        if: failure() && secrets.ALERT_EMAIL != ''
+        if: ${{ failure() && env.ALERT_EMAIL != '' }}
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_HOST }}
@@ -455,7 +457,7 @@ jobs:
           secure: true
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
+          to: ${{ env.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
