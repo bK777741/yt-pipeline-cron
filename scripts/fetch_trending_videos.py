@@ -92,7 +92,9 @@ def parse_iso8601_duration(duration):
 def classify_format(duration_sec, long_min_seconds=180):
     if duration_sec <= 60:
         return "short"
-    return "long" if duration_sec >= long_min_seconds else "medium"
+    if duration_sec >= long_min_seconds:
+        return "long"
+    return "medium"  # intermedio
 
 def tokenize(text):
     words = re.findall(r'\w+', text.lower())
@@ -220,6 +222,10 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
     duration_sec = parse_iso8601_duration(content["duration"])
     video_format = classify_format(duration_sec, long_min_seconds)
     
+    # Descartar formato medium
+    if video_format not in ("short", "long"):
+        return None
+    
     # Tokenizar y calcular similitud
     text = f"{snippet['title']} {snippet.get('description', '')}"
     video_words = set(tokenize(text))
@@ -269,7 +275,11 @@ def pct(values, p):
 
 def apply_dynamic_viral_filters(items):
     vph_s, eng_s, vph_l, eng_l = [], [], [], []
+    
+    # Calcular métricas SOLO para short/long
     for it in items:
+        if it["format"] not in ("short", "long"):
+            continue
         it["vph"] = compute_vph(it)
         it["engagement"] = compute_engagement(it)
         if it["format"] == "short":
@@ -279,13 +289,23 @@ def apply_dynamic_viral_filters(items):
             vph_l.append(it["vph"])
             eng_l.append(it["engagement"])
     
+    # Calcular percentiles solo si hay datos
     thr = {
-        "short": {"vph": pct(vph_s, 80), "eng": pct(eng_s, 60)},
-        "long": {"vph": pct(vph_l, 80), "eng": pct(eng_l, 60)},
+        "short": {
+            "vph": pct(vph_s, 80) if vph_s else 0,
+            "eng": pct(eng_s, 60) if eng_s else 0
+        },
+        "long": {
+            "vph": pct(vph_l, 80) if vph_l else 0,
+            "eng": pct(eng_l, 60) if eng_l else 0
+        }
     }
     
     kept = []
+    # Filtrar SOLO short/long que pasen umbrales
     for it in items:
+        if it["format"] not in ("short", "long"):
+            continue
         t = thr[it["format"]]
         if it["vph"] >= t["vph"] and it["engagement"] >= t["eng"]:
             kept.append(it)
