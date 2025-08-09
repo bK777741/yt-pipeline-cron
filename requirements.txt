@@ -6,3 +6,7 @@ supabase
 pytz
 requests
 beautifulsoup4
+numpy
+scipy
+nltk==3.8.1
+pytrends
