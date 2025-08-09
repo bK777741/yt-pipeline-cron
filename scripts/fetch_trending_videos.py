@@ -7,7 +7,7 @@ import os
 import re
 import json
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, Counter
 import numpy as np
 from googleapiclient.discovery import build
@@ -137,14 +137,17 @@ def fetch_trending_page(yt, region, page_token=None, max_results=50):
     ).execute()
 
 def already_in_db(sb, video_id):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).date().isoformat()
     res = sb.table("video_trending").select("video_id").eq("video_id", video_id).eq("run_date", today).execute()
     return len(res.data) > 0
 
 def compute_vph(video_info):
-    published_at = datetime.fromisoformat(video_info["published_at"].replace("Z", "+00:00"))
-    hours_since_pub = max(1, (datetime.utcnow() - published_at).total_seconds() / 3600)
-    return int(video_info["view_count"]) / hours_since_pub
+    published_at = datetime.fromisoformat(
+        video_info["published_at"].replace("Z", "+00:00")
+    )
+    now = datetime.now(timezone.utc)
+    hours_since_pub = max(1, (now - published_at).total_seconds() / 3600.0)
+    return int(video_info.get("view_count", 0) or 0) / hours_since_pub
 
 def compute_engagement(video_info):
     likes = int(video_info.get("like_count", 0))
@@ -365,7 +368,7 @@ def select_top_candidates(candidates, max_shorts, max_longs):
     return selected
 
 def save_to_supabase(sb, videos):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).date().isoformat()
     rows = []
     for i, v in enumerate(videos, start=1):
         rows.append({
@@ -410,7 +413,7 @@ def enrich_with_channel_stats(yt, finalists):
             it["channel_subscribers"] = 0
 
 def generate_report(selected_videos, stats):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"trending_report_{today}.md"
     
     with open(filename, "w") as f:
@@ -474,7 +477,9 @@ def main():
     freshness = {}
     for video in kept:
         pub_date = datetime.fromisoformat(video["published_at"].replace("Z", "+00:00"))
-        freshness[video["video_id"]] = (datetime.utcnow() - pub_date).total_seconds() / 3600
+        freshness[video["video_id"]] = (
+            datetime.now(timezone.utc) - pub_date
+        ).total_seconds() / 3600.0
     
     topic_counts = Counter(v["topic_key"] for v in kept)
     
