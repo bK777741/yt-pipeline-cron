@@ -189,7 +189,7 @@ def compute_score(video_info, format, channel_profile, region_count, freshness_h
     
     # Penalización por saturación de tema
     topic = video_info["topic_key"]
-    penalty = min(topic_counts.get(topic, 0) * 0.5
+    penalty = min(topic_counts.get(topic, 0), 1.0) * 0.5
     score -= penalty
     
     return score
