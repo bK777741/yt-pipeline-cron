@@ -440,12 +440,12 @@ jobs:
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CONTACT_EMAIL:        ${{ secrets.CONTACT_EMAIL }}
+          CONTACT_EMAIL:        "jvillarreal0991@gmail.com"
           POLICY_URLS:          ${{ secrets.POLICY_URLS }}
           POLICY_MAX_CHARS:     "12000"
       
       - name: Notify failure by email
-        if: failure()
+        if: failure() && secrets.ALERT_EMAIL != ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_HOST }}
