@@ -26,19 +26,19 @@ source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
 Crea y configura los secrets en GitHub (Settings → Secrets and variables → Actions):
 
-YT_CLIENT_ID : 188236109004-eg7vismmce33gs48mh28tsj1fdb4vfhb.apps.googleusercontent.com
+YT_CLIENT_ID :
 
-YT_CLIENT_SECRET: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
+YT_CLIENT_SECRET:
 
-YT_REFRESH_TOKEN:1//0c9_DOddLzkFWCgYIARAAGAwSNwF-L9IreHlb4QyhjJOELkhkP_A8qjF0Y1Hxxp7uHAglxTdLhvyoVvjHi25DmblW4svsZ4ofnxc
+YT_REFRESH_TOKEN:
 
-SUPABASE_URL:https://jkoqlxfahbcszaysbzsr.supabase.co
+SUPABASE_URL:
 
-SUPABASE_SERVICE_KEY:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imprb3FseGZhaGJjc3pheXNienNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNDYxOTYsImV4cCI6MjA2OTkyMjE5Nn0.U1F4IvKCfrZKf3xxoNjsakd6QiwS9QE-jz_QeL-wREE
+SUPABASE_SERVICE_KEY:
 
 DAILY_VIDEO_BATCH:20
 
-CHANNEL_ID:UCWkGLaq5XxtF_r-0DKGZh4A
+CHANNEL_ID:
 
 Ejecución local
 bash
