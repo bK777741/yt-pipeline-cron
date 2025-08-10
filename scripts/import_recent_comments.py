@@ -74,7 +74,7 @@ def fetch_comments_for_video(yt, video_id, max_results):
             break
         
         page_comments = 0
-        for item in response["items"]:
+        for item in response.get("items", []):
             if len(comments) >= max_results:
                 break
                 
@@ -88,21 +88,23 @@ def fetch_comments_for_video(yt, video_id, max_results):
             if published_at < cutoff:
                 continue
                 
-            comments.append(process_comment(top_snippet, video_id))
+            comment_id = top_comment["id"]
+            comments.append(process_comment(top_snippet, comment_id, video_id))
             page_comments += 1
             
-            if "replies" in item:
-                for reply in item["replies"]["comments"]:
-                    if len(comments) >= max_results:
-                        break
-                    reply_snippet = reply["snippet"]
-                    try:
-                        reply_published = parse_iso_datetime(reply_snippet["publishedAt"])
-                    except ValueError:
-                        continue
-                    if reply_published >= cutoff:
-                        comments.append(process_comment(reply_snippet, video_id, top_comment["id"]))
-                        page_comments += 1
+            replies = item.get("replies", {}).get("comments", [])
+            for reply in replies:
+                if len(comments) >= max_results:
+                    break
+                reply_snippet = reply["snippet"]
+                try:
+                    reply_published = parse_iso_datetime(reply_snippet["publishedAt"])
+                except ValueError:
+                    continue
+                if reply_published >= cutoff:
+                    reply_id = reply["id"]
+                    comments.append(process_comment(reply_snippet, reply_id, video_id, top_comment["id"]))
+                    page_comments += 1
         
         next_page_token = response.get("nextPageToken")
         if not next_page_token or page_comments == 0:
@@ -112,17 +114,18 @@ def fetch_comments_for_video(yt, video_id, max_results):
     
     return comments
 
-def process_comment(snippet, video_id, parent_id=None):
+def process_comment(snippet, comment_id, video_id, parent_id=None):
+    published_at = snippet["publishedAt"]
     return {
         "video_id": video_id,
-        "comment_id": snippet["id"],
+        "comment_id": comment_id,
         "parent_id": parent_id,
-        "author_display_name": snippet["authorDisplayName"],
-        "author_channel_url": snippet["authorChannelUrl"],
-        "text_original": snippet["textOriginal"],
-        "like_count": snippet["likeCount"],
-        "published_at": snippet["publishedAt"],
-        "updated_at": snippet["updatedAt"],
+        "author_display_name": snippet.get("authorDisplayName"),
+        "author_channel_url": snippet.get("authorChannelUrl"),
+        "text_original": snippet.get("textOriginal") or snippet.get("textDisplay", ""),
+        "like_count": snippet.get("likeCount", 0),
+        "published_at": published_at,
+        "updated_at": snippet.get("updatedAt", published_at),
         "checked_at": datetime.datetime.utcnow().isoformat() + "Z"
     }
 
@@ -131,7 +134,10 @@ def upsert_comments(sb: Client, comments):
         return
     
     for comment in comments:
-        sb.table("comments").upsert(comment, on_conflict="comment_id").execute()
+        try:
+            sb.table("comments").upsert(comment, on_conflict=["comment_id"]).execute()
+        except Exception as e:
+            print(f"Error upserting comment {comment['comment_id']}: {str(e)}")
 
 def main():
     creds, supabase_url, supabase_key, max_videos, max_comments = load_env()
