@@ -19,6 +19,7 @@ from supabase import create_client, Client
 from PIL import Image
 import cv2
 import imagehash
+import pytesseract  # Nueva dependencia para OCR
 
 # --- Nuevas funciones para análisis de miniaturas ---
 def download_thumbnail(url):
@@ -84,6 +85,36 @@ def analyze_thumbnail(thumbnail_url):
         except Exception:
             pass
         
+        # --- NUEVO: Análisis OCR para text_area_ratio ---
+        text_area_ratio = 0.0
+        enable_ocr = os.getenv("ENABLE_THUMBNAIL_OCR", "true").lower() == "true"
+        
+        if enable_ocr:
+            try:
+                # Convertir a RGB para Tesseract
+                img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+                # Obtener bounding boxes de texto
+                ocr_data = pytesseract.image_to_data(img_rgb, output_type=pytesseract.Output.DICT)
+                
+                total_text_area = 0
+                img_area = img.width * img.height
+                
+                for i in range(len(ocr_data['text'])):
+                    if int(ocr_data['conf'][i]) > 0:  # Solo áreas con texto detectado
+                        x, y, w, h = (
+                            ocr_data['left'][i],
+                            ocr_data['top'][i],
+                            ocr_data['width'][i],
+                            ocr_data['height'][i]
+                        )
+                        total_text_area += w * h
+                
+                if img_area > 0:
+                    text_area_ratio = total_text_area / img_area
+            except Exception as e:
+                print(f"Error en OCR: {str(e)}")
+                text_area_ratio = 0.0
+        
         return {
             'dominant_color': dominant_color,
             'palette': palette,
@@ -92,7 +123,8 @@ def analyze_thumbnail(thumbnail_url):
             'faces_count': faces_count,
             'saliency_score': float(saliency_score),
             'saliency_center': saliency_center,
-            'phash': phash
+            'phash': phash,
+            'text_area_ratio': float(text_area_ratio)  # Nueva métrica
         }
     
     except Exception as e:
@@ -166,8 +198,10 @@ def fetch_videos(yt, channel_id, published_after, max_results):
         return [
             {
                 "video_id": item["id"],
+                "title": item["snippet"]["title"],  # Nuevo campo
                 "description": item["snippet"]["description"],
                 "hashtags": extract_hashtags(item["snippet"]["description"]),
+                "tags": item["snippet"].get("tags", []),  # Nuevo campo
                 "duration": item["contentDetails"]["duration"],
                 "thumbnails": item["snippet"]["thumbnails"]
             }
@@ -180,7 +214,10 @@ def upsert_videos(sb: Client, videos):
     for video in videos:
         rows.append({
             "video_id": video["video_id"],
+            "title": video["title"],  # Nuevo campo
+            "description": video["description"],  # Nuevo campo
             "hashtags": video["hashtags"],
+            "tags": video["tags"],  # Nuevo campo
             "duration": video["duration"],
             "imported_at": "now()"
         })
