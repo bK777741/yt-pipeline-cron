@@ -1,69 +1,91 @@
 # YouTube → Supabase pipeline
+# YouTube → Supabase → GUI → Base de Datos Local
+**Fecha de actualización:** 2025-08-10
 
-Cron jobs que importan datos de tu canal de YouTube a una base en Supabase.
+## 📌 Descripción General
+Este proyecto automatiza la extracción, análisis y almacenamiento de datos de YouTube para optimizar la creación de contenido y la monetización.  
+Actualmente, se ejecuta mediante **cron jobs en GitHub Actions** que conectan con la **API de YouTube**, procesan los datos y los guardan en **Supabase**.  
+En una fase futura, toda la información se sincronizará automáticamente con una **Base de Datos Local** al abrir la GUI.
 
-## Funcionalidades
+---
 
-- **Import daily videos**: extrae los vídeos publicados hoy en tu canal.
-- **Reconcile comments**: sincroniza comentarios nuevos en Supabase.
-- **Purge buffer**: limpia datos antiguos de la tabla de buffer.
-- **Maintain metrics**: actualiza métricas agregadas.
+## 🚀 Funcionalidades Clave
+1. **Importación diaria de videos** con título, descripción, hashtags, etiquetas, duración y miniatura.
+2. **Análisis de miniaturas**: color dominante, paleta, brillo, contraste, detección de rostros, OCR para texto, phash.
+3. **Extracción de comentarios** y respuestas recientes (últimos 60 días), con filtrado de spam y análisis de sentimiento (positivo, negativo, neutro).
+4. **Importación de subtítulos** para posible uso en análisis de guiones.
+5. **Actualización de métricas** diarias (vistas, likes, comentarios).
+6. **Analíticas de monetización**: impresiones, CTR, CPM, ingresos estimados, reproducciones monetizadas.
+7. **Analíticas de retención**: minutos vistos, duración promedio de visualización, retención de audiencia, suscriptores ganados.
+8. **Detección de tendencias** de búsqueda y videos virales relevantes para el nicho del canal.
+9. **Registro de políticas de YouTube**, detectando cambios y actualizando la base.
+10. **Cálculo de horarios óptimos** para publicar nuevos videos.
+11. **Limpieza automática de datos antiguos** (con backup en Supabase Storage).
 
-## Configuración
+---
 
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/bK777741/yt-pipeline-cron.git
-   cd yt-pipeline-cron
-Crea un entorno virtual e instala dependencias:
+## ⏱ Horarios de Ejecución (Lima)
+- **02:00** → Importar videos del día (`import_daily.py`).
+- **02:30** → Sincronizar comentarios (`reconcile_comments.py`).
+- **03:00** → Purga de buffer y backup (`purge_buffer.py`).
+- **04:00** → Actualizar métricas (`maint_metrics.py`).
 
-bash
-Copiar
-Editar
+---
+
+## 🛠 Estructura de Datos en Supabase
+Las tablas principales incluyen:
+- **videos** → Datos completos de cada video.
+- **comments** → Comentarios y análisis de sentimiento/spam.
+- **captions** → Subtítulos.
+- **video_statistics** → Métricas diarias.
+- **video_analytics** → Analíticas de retención y monetización.
+- **video_trending** → Videos virales filtrados por nicho.
+- **search_trends** → Tendencias de búsqueda.
+- **posting_schedule** → Mejores horarios para publicar.
+- **youtube_policies** → Políticas y actualizaciones de YouTube.
+- **video_thumbnail_analysis** → Análisis de miniaturas.
+
+---
+
+## 🔒 Seguridad
+- **RLS (Row Level Security)** activado en todas las tablas.
+- Acceso de escritura limitado al **service_role**.
+- El **anon key** solo puede insertar y leer en `video_trending`.
+- Recomendación: asegurar que el archivo `.env` esté en `.gitignore` para evitar exposición de credenciales.
+
+---
+
+## 📈 Flujo del Proyecto
+1. **GitHub Actions** ejecuta scripts que consultan la API de YouTube.
+2. Los datos se procesan y se guardan en **Supabase**.
+3. En la próxima fase, la **GUI** descargará datos de Supabase a la **Base de Datos Local** de forma incremental, evitando sobrescrituras.
+
+---
+
+## 📂 Instalación Local
+```bash
+# Clonar el repositorio
+git clone <tu-repositorio>
+cd <tu-repositorio>
+
+# Crear entorno virtual
 python -m venv .venv
 source .venv/bin/activate   # macOS/Linux
-.venv\Scripts\activate      # Windows
+.venv\Scripts\activate    # Windows
+
+# Instalar dependencias
 pip install -r requirements.txt
-Crea y configura los secrets en GitHub (Settings → Secrets and variables → Actions):
 
-YT_CLIENT_ID :
+# Configurar credenciales en .env
+SUPABASE_URL=...
+SUPABASE_SERVICE_KEY=...
+YT_CLIENT_ID=...
+YT_CLIENT_SECRET=...
+YT_REFRESH_TOKEN=...
+```
 
-YT_CLIENT_SECRET:
+---
 
-YT_REFRESH_TOKEN:
-
-SUPABASE_URL:
-
-SUPABASE_SERVICE_KEY:
-
-DAILY_VIDEO_BATCH:20
-
-CHANNEL_ID:
-
-Ejecución local
-bash
-Copiar
-Editar
-# Carga variables de entorno en un .env:
-cp .env.txt .env
-# Edita .env con tus credenciales.
-
-# Importa vídeos de hoy:
-python scripts/import_daily.py
-GitHub Actions
-El flujo está definido en .github/workflows/cron.yml y corre:
-
-schedule: "0 7 * * *" → Import daily videos (02:00 Lima)
-
-schedule: "30 7 * * *" → Reconcile comments (02:30 Lima)
-
-schedule: "0 8 * * *" → Purge buffer (03:00 Lima)
-
-schedule: "0 9 * * *" → Maintain metrics (04:00 Lima)
-
-También lo puedes lanzar manualmente desde la pestaña Actions → YouTube → Supabase pipeline → Run workflow.
-
-Licencia
-MIT © Grupo Destinos Oficial
-
-
+## 📜 Licencia
+MIT © 2025  
+Desarrollado para optimizar canales de YouTube mediante automatización, análisis y sincronización de datos.
