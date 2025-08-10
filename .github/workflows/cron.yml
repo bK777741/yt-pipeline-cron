@@ -428,8 +428,7 @@ jobs:
     name: Fetch trending videos
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 11 * * *' }}
-    strategy:
-      continue-on-error: true
+    continue-on-error: true
     defaults:
       run:
         working-directory: ${{ github.workspace }}
