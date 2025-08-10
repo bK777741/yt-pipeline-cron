@@ -16,3 +16,11 @@ imagehash>=4.3.1
 pytesseract==0.3.10
 language-tool-python
 unidecode
+ultralytics==8.2.103
+opencv-python==4.10.0.84
+pytesseract==0.3.10
+Pillow==10.4.0
+sentence-transformers==3.0.1
+torch==2.3.1
+numpy==1.26.4
+scikit-learn==1.5.1
