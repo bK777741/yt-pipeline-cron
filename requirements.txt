@@ -13,4 +13,6 @@ pytrends
 opencv-python-headless==4.10.0.84
 Pillow>=10.4.0
 imagehash>=4.3.1
-pytesseract==0.3.10  # Nueva dependencia para OCR
+pytesseract==0.3.10
+language-tool-python
+unidecode
