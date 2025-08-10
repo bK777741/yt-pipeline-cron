@@ -1,4 +1,3 @@
-# YouTube → Supabase pipeline
 # YouTube → Supabase → GUI → Base de Datos Local
 **Fecha de actualización:** 2025-08-10
 
