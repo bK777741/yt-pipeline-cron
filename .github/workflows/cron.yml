@@ -4,6 +4,11 @@ concurrency:
   group: youtube-supabase-cron
   cancel-in-progress: false
 
+env:
+  THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
+  THUMB_OCR_ENABLED: ${{ vars.THUMB_OCR_ENABLED || 'false' }}
+  NICHES_EMBEDDING_ENABLED: ${{ vars.NICHES_EMBEDDING_ENABLED || 'false' }}
+
 on:
   workflow_dispatch:
   push:
