@@ -8,9 +8,10 @@ on:
   schedule:
     - cron: "0 7 * * *"     # import_daily (02:00 Lima)
     - cron: "15 7 * * *"    # import_captions (02:15 Lima)
-    - cron: "30 7 * * *"    # reconcile_comments (02:30 Lima)
-    - cron: "45 7 * * *"    # sentiment_analysis (02:45 Lima)
-    - cron: "0 8 * * *"     # purge_buffer (03:00 Lima)
+    - cron: "30 7 * * *"    # import_recent_comments (02:30 Lima) # NUEVO
+    - cron: "45 7 * * *"    # reconcile_comments (02:45 Lima)
+    - cron: "0 8 * * *"     # sentiment_analysis (03:00 Lima)
+    - cron: "15 8 * * *"    # purge_buffer (03:15 Lima)
     - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
     - cron: "0 10 * * *"    # fetch_video_analytics (05:00 Lima)
     - cron: "0 11 * * *"    # fetch_monetization_metrics (06:00 Lima)
@@ -64,6 +65,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   import_captions:
     name: Import captions
     runs-on: ubuntu-latest
@@ -101,9 +103,51 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  import_recent_comments:
+    name: Import recent comments
+    runs-on: ubuntu-latest
+    needs: import_captions
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+      - run: pip install -r requirements.txt
+      - name: Run import_recent_comments.py
+        run: python ./scripts/import_recent_comments.py
+        env:
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MAX_VIDEOS_PER_RUN:   "50"
+          MAX_COMMENTS_PER_VIDEO: "200"
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   reconcile_comments:
     name: Reconcile comments
     runs-on: ubuntu-latest
+    needs: import_recent_comments
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -137,6 +181,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   sentiment_analysis:
     name: Analyze comment sentiment
     runs-on: ubuntu-latest
@@ -176,8 +221,9 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   purge_buffer:
-    name: Purge buffer
+    name: Purge buffer with backup
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -209,6 +255,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   maint_metrics:
     name: Maintain metrics
     runs-on: ubuntu-latest
@@ -245,6 +292,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   fetch_video_analytics:
     name: Fetch video analytics
     runs-on: ubuntu-latest
@@ -281,6 +329,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   fetch_monetization_metrics:
     name: Fetch monetization metrics
     runs-on: ubuntu-latest
@@ -317,6 +366,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   compute_posting_schedule:
     name: Compute posting schedule
     runs-on: ubuntu-latest
@@ -350,6 +400,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   fetch_trending_videos:
     name: Fetch trending videos
     runs-on: ubuntu-latest
@@ -400,6 +451,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   fetch_search_trends:
     name: Fetch search trends
     runs-on: ubuntu-latest
@@ -439,6 +491,7 @@ jobs:
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   policy_monitor:
     name: Fetch YouTube policies
     runs-on: ubuntu-latest
@@ -473,5 +526,4 @@ jobs:
           to: ${{ env.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
