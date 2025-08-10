@@ -16,7 +16,10 @@ import time
 def _int_env(var_name, default):
     """Lee una variable de entorno entera con manejo seguro de errores."""
     value = os.environ.get(var_name)
-    if value is None or value == '':
+    if value is None:
+        return default
+    value = value.strip()
+    if value == '':
         return default
     try:
         return int(value)
@@ -25,15 +28,28 @@ def _int_env(var_name, default):
 
 def load_env():
     load_dotenv()
+    
+    # Limpieza de variables sensibles
+    yt_refresh_token = os.environ["YT_REFRESH_TOKEN"].strip()
+    yt_client_id = os.environ["YT_CLIENT_ID"].strip()
+    yt_client_secret = os.environ["YT_CLIENT_SECRET"].strip()
+    supabase_url = os.environ["SUPABASE_URL"].strip()
+    supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
+    
+    # Validación básica de URL
+    if not supabase_url.startswith(('http://', 'https://')):
+        raise ValueError("SUPABASE_URL no comienza con http:// o https://")
+    if any(c.isspace() for c in supabase_url):
+        print("Advertencia: SUPABASE_URL contenía espacios internos (se usó versión limpia)")
+    
     creds = Credentials(
         token=None,
-        refresh_token=os.environ["YT_REFRESH_TOKEN"],
-        client_id=os.environ["YT_CLIENT_ID"],
-        client_secret=os.environ["YT_CLIENT_SECRET"],
+        refresh_token=yt_refresh_token,
+        client_id=yt_client_id,
+        client_secret=yt_client_secret,
         token_uri="https://oauth2.googleapis.com/token",
     )
-    supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
+    
     max_videos = _int_env("MAX_VIDEOS_PER_RUN", 50)
     max_comments = _int_env("MAX_COMMENTS_PER_VIDEO", 500)
     return creds, supabase_url, supabase_key, max_videos, max_comments
