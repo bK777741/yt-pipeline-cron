@@ -530,7 +530,7 @@ jobs:
   fetch_youtube_policies:
     name: Fetch YouTube policies
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 14 1,16 * *' }}
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -538,14 +538,6 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Check day of month
-        if: ${{ github.event_name == 'schedule' }}
-        run: |
-          current_day=$(date -u +%d)
-          if [[ "$current_day" != "01" && "$current_day" != "16" ]]; then
-            echo "Skipping because today is not 1st or 16th"
-            exit 0
-          fi
       - name: Run fetch_youtube_policies.py with retry
         uses: nick-invision/retry@v3
         with:
