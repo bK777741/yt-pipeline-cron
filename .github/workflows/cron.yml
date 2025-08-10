@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Tesseract OCR  # Nuevo paso
+      - name: Install Tesseract OCR
         run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
 
       - name: Run import_daily.py with retry
@@ -62,7 +62,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
           CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
-          ENABLE_THUMBNAIL_OCR: "true"  # Flag opcional
+          ENABLE_THUMBNAIL_OCR: "true"
 
       - name: Notify failure by email
         if: failure()
@@ -124,10 +124,58 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  convert_captions_to_script:
+    name: Convert captions to script
+    runs-on: ubuntu-latest
+    needs: import_captions
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '15 7 * * *' }}
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Run convert_captions_to_script.py
+        run: python ./scripts/convert_captions_to_script.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SCRIPT_LANG: 'es'
+          SCRIPT_MAX_PER_RUN: '20'
+          SCRIPT_ORTHO_ENABLED: 'true'
+          SCRIPT_DRY_RUN: 'false'
+
+      - name: Upload script report
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-report
+          path: ./scripts_report_*.md
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   import_recent_comments:
     name: Import recent comments
     runs-on: ubuntu-latest
-    needs: import_captions
+    needs: convert_captions_to_script
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 7 * * *' }}
     defaults:
       run:
