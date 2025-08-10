@@ -45,6 +45,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Tesseract OCR  # Nuevo paso
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
       - name: Run import_daily.py with retry
         uses: nick-invision/retry@v3
         with:
@@ -59,6 +62,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
           CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
+          ENABLE_THUMBNAIL_OCR: "true"  # Flag opcional
 
       - name: Notify failure by email
         if: failure()
