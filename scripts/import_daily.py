@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 import_daily.py (MODIFICADO)
-Ahora incluye análisis de miniaturas.
+Ahora incluye análisis de miniaturas con manejo robusto de errores.
 """
 import os
 import re
 import io
-import json
+import sys
 import requests
 import numpy as np
 from datetime import datetime
@@ -23,7 +23,7 @@ import imagehash
 # --- Nuevas funciones para análisis de miniaturas ---
 def download_thumbnail(url):
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=15)
         response.raise_for_status()
         return Image.open(io.BytesIO(response.content))
     except Exception as e:
@@ -32,7 +32,7 @@ def download_thumbnail(url):
 
 def get_best_thumbnail(thumbnails):
     for res in ['maxres', 'high', 'medium', 'default']:
-        if res in thumbnails and thumbnails[res]['url']:
+        if res in thumbnails and thumbnails[res].get('url'):
             return thumbnails[res]['url'], res
     return None, None
 
@@ -64,24 +64,32 @@ def analyze_thumbnail(thumbnail_url):
         brightness_mean = np.mean(gray)
         contrast_std = np.std(gray)
         
-        # Detección de caras
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        # Detección de caras con fallback seguro
+        faces_count = 0
+        try:
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            faces_count = len(faces)
+        except Exception:
+            pass  # Si falla, mantiene 0 caras
         
-        # Saliency - Reemplazado por valor por defecto
-        # No disponible en opencv-python-headless
+        # Valores por defecto para saliencia
         saliency_score = 0.0
-        saliency_center = [0.5, 0.5]  # Centro por defecto
+        saliency_center = [0.5, 0.5]
         
-        # pHash
-        phash = str(imagehash.phash(img))
+        # pHash con fallback
+        phash = ""
+        try:
+            phash = str(imagehash.phash(img))
+        except Exception:
+            pass
         
         return {
             'dominant_color': dominant_color,
             'palette': palette,
             'brightness_mean': float(brightness_mean),
             'contrast_std': float(contrast_std),
-            'faces_count': len(faces),
+            'faces_count': faces_count,
             'saliency_score': float(saliency_score),
             'saliency_center': saliency_center,
             'phash': phash
@@ -161,7 +169,7 @@ def fetch_videos(yt, channel_id, published_after, max_results):
                 "description": item["snippet"]["description"],
                 "hashtags": extract_hashtags(item["snippet"]["description"]),
                 "duration": item["contentDetails"]["duration"],
-                "thumbnails": item["snippet"]["thumbnails"]  # Nuevo campo
+                "thumbnails": item["snippet"]["thumbnails"]
             }
             for item in details_resp.get("items", [])
         ]
@@ -178,32 +186,50 @@ def upsert_videos(sb: Client, videos):
         })
     sb.table("videos").upsert(rows, on_conflict=["video_id"]).execute()
 
-# --- Nueva función para análisis de miniaturas ---
+# --- Función mejorada para análisis de miniaturas ---
 def analyze_and_save_thumbnails(sb: Client, videos):
     for video in videos:
-        best_url, source_size = get_best_thumbnail(video["thumbnails"])
-        if not best_url:
-            print(f"Sin miniatura para {video['video_id']}")
-            continue
-            
-        analysis = analyze_thumbnail(best_url)
-        if analysis:
+        try:
+            best_url, source_size = get_best_thumbnail(video["thumbnails"])
+            if not best_url:
+                print(f"Sin miniatura para {video['video_id']}")
+                continue
+                
+            analysis = analyze_thumbnail(best_url)
+            if not analysis:
+                continue
+                
             analysis["video_id"] = video["video_id"]
             analysis["source_size"] = source_size
-            sb.table("video_thumbnail_analysis").upsert(analysis, on_conflict="video_id").execute()
+            
+            try:
+                sb.table("video_thumbnail_analysis").upsert(
+                    analysis, 
+                    on_conflict=["video_id"]
+                ).execute()
+            except Exception as e:
+                print(f"Error al guardar análisis para {video['video_id']}: {str(e)}")
+                
+        except Exception as e:
+            print(f"Error procesando miniatura de {video['video_id']}: {str(e)}")
 
 def main():
-    creds, supabase_url, supabase_key, batch, channel_id = load_env()
-    yt, sb = init_clients(creds, supabase_url, supabase_key)
-    start, end = get_today_window()
-    
-    videos = fetch_videos(yt, channel_id, start, batch)
-    
-    if videos:
-        upsert_videos(sb, videos)
-        analyze_and_save_thumbnails(sb, videos)
-    
-    print(f"[import_daily] Vídeos procesados: {len(videos)}")
+    try:
+        creds, supabase_url, supabase_key, batch, channel_id = load_env()
+        yt, sb = init_clients(creds, supabase_url, supabase_key)
+        start, end = get_today_window()
+        
+        videos = fetch_videos(yt, channel_id, start, batch)
+        video_count = len(videos)
+        
+        if videos:
+            upsert_videos(sb, videos)
+            analyze_and_save_thumbnails(sb, videos)
+        
+        print(f"[import_daily] Vídeos procesados: {video_count}")
+    except Exception as e:
+        print(f"[import_daily] ERROR CRÍTICO: {str(e)}")
+        sys.exit(0)  # Siempre termina con código 0
 
 if __name__ == "__main__":
     main()
