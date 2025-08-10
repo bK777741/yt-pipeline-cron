@@ -1,15 +1,10 @@
-python-dotenv
-google-api-python-client
-google-auth-oauthlib
-google-auth-httplib2
-supabase
-pytz
-requests
-beautifulsoup4
-numpy
-scipy
-nltk==3.8.1
-pytrends
-opencv-python-headless==4.9.0.80
-Pillow==10.3.0
-imagehash==4.3.1
+# requirements.txt
+google-api-python-client>=2.0.0
+python-dotenv>=0.19.0
+pytz>=2021.3
+supabase>=1.0.0
+requests>=2.26.0
+numpy>=1.21.0
+opencv-python-headless==4.10.0.84
+Pillow>=10.4.0
+imagehash>=4.3.1
