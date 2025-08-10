@@ -23,6 +23,7 @@ on:
     - cron: "45 11 * * *"    # fetch_search_trends (11:45 UTC)
     - cron: "0 14 1,16 * *"  # fetch_youtube_policies (14:00 UTC, días 1 y 16)
     - cron: "55 4 * * *"     # purge_buffer (04:55 UTC)
+    - cron: "45 10 * * 0"    # build_channel_profile (domingos 10:45 UTC)
 
 jobs:
   import_daily:
@@ -45,8 +46,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Tesseract OCR
-        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Install system dependencies (OCR/OpenCV)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr libgl1
 
       - name: Run import_daily.py with retry
         uses: nick-invision/retry@v3
@@ -644,6 +647,242 @@ jobs:
           command: python ./scripts/purge_buffer.py
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  detect_thumbnail_objects:
+    name: Detect thumbnail objects
+    runs-on: ubuntu-latest
+    needs: import_daily
+    if: ${{ env.THUMB_OBJECTS_ENABLED == 'true' }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install system dependencies (OpenCV)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run detect_thumbnail_objects.py
+        run: python ./scripts/detect_thumbnail_objects.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OBJ_MODEL: ${{ secrets.OBJ_MODEL || 'yolov8n' }}
+          OBJ_CLASSES_WHITELIST: ${{ secrets.OBJ_CLASSES_WHITELIST || 'person,face,hand,cell phone,book,laptop' }}
+          BATCH_SIZE_THUMBS: ${{ secrets.BATCH_SIZE_THUMBS || '120' }}
+          MAX_THUMB_WORKERS: ${{ secrets.MAX_THUMB_WORKERS || '2' }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  extract_thumbnail_text:
+    name: Extract thumbnail text
+    runs-on: ubuntu-latest
+    needs: import_daily
+    if: ${{ env.THUMB_OCR_ENABLED == 'true' }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install system dependencies (Tesseract)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run extract_thumbnail_text.py
+        run: python ./scripts/extract_thumbnail_text.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OCR_LANGS: ${{ secrets.OCR_LANGS || 'spa+eng' }}
+          OCR_MIN_CONF: ${{ secrets.OCR_MIN_CONF || '0.60' }}
+          BATCH_SIZE_THUMBS: ${{ secrets.BATCH_SIZE_THUMBS || '120' }}
+          MAX_THUMB_WORKERS: ${{ secrets.MAX_THUMB_WORKERS || '2' }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  build_channel_profile:
+    name: Build channel profile
+    runs-on: ubuntu-latest
+    if: ${{ env.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name != 'schedule' || github.event.schedule == '45 10 * * 0') }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run build_channel_profile.py
+        run: python ./scripts/build_channel_profile.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NICHES_TOP_N_VIDEOS: ${{ secrets.NICHES_TOP_N_VIDEOS || '120' }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  refine_trending_with_niche:
+    name: Refine trending with niche
+    runs-on: ubuntu-latest
+    needs: [fetch_trending_videos, build_channel_profile]
+    if: ${{ env.NICHES_EMBEDDING_ENABLED == 'true' }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run refine_trending_with_niche.py
+        run: python ./scripts/refine_trending_with_niche.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NICHES_SIM_THRESHOLD: ${{ secrets.NICHES_SIM_THRESHOLD || '0.78' }}
+          NICHES_TAXONOMY_ENFORCE: ${{ secrets.NICHES_TAXONOMY_ENFORCE || 'false' }}
+          NICHES_WHITELIST_L2: ${{ secrets.NICHES_WHITELIST_L2 || '' }}
+          NICHES_BLACKLIST_L2: ${{ secrets.NICHES_BLACKLIST_L2 || '' }}
+
+      - name: Upload refinement report
+        uses: actions/upload-artifact@v4
+        with:
+          name: niche-refinement-report
+          path: ./niche_refinement_report_*.md
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  export_sync_watermarks:
+    name: Export sync watermarks
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '55 4 * * *' }}
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Run export_sync_watermarks.py
+        run: python ./scripts/export_sync_watermarks.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
