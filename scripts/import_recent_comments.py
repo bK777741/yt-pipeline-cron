@@ -13,6 +13,16 @@ from dotenv import load_dotenv
 import pytz
 import time
 
+def _int_env(var_name, default):
+    """Lee una variable de entorno entera con manejo seguro de errores."""
+    value = os.environ.get(var_name)
+    if value is None or value == '':
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
 def load_env():
     load_dotenv()
     creds = Credentials(
@@ -24,8 +34,8 @@ def load_env():
     )
     supabase_url = os.environ["SUPABASE_URL"]
     supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
-    max_videos = int(os.environ.get("MAX_VIDEOS_PER_RUN", 50))
-    max_comments = int(os.environ.get("MAX_COMMENTS_PER_VIDEO", 500))
+    max_videos = _int_env("MAX_VIDEOS_PER_RUN", 50)
+    max_comments = _int_env("MAX_COMMENTS_PER_VIDEO", 500)
     return creds, supabase_url, supabase_key, max_videos, max_comments
 
 def init_clients(creds, supabase_url, supabase_key):
