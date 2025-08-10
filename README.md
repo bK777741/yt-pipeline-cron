@@ -88,4 +88,4 @@ YT_REFRESH_TOKEN=...
 
 ## 📜 Licencia
 MIT © 2025  
-Desarrollado para optimizar canales de YouTube mediante automatización, análisis y sincronización de datos.
+Desarrollado por PILOIDE
