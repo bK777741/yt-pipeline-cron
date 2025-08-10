@@ -44,48 +44,52 @@ def analyze_thumbnail(thumbnail_url):
     if not img:
         return None
     
-    # Convertir a array numpy para OpenCV
-    img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    try:
+        # Convertir a array numpy para OpenCV
+        img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        
+        # Dominant color y paleta (usando k-means simplificado)
+        pixels = img_cv.reshape((-1, 3))
+        pixels = np.float32(pixels)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+        _, labels, centers = cv2.kmeans(
+            pixels, 5, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
+        )
+        centers = np.uint8(centers)
+        dominant_color = '#%02x%02x%02x' % tuple(centers[0].tolist())
+        palette = ['#%02x%02x%02x' % tuple(color.tolist()) for color in centers]
+        
+        # Brillo y contraste
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        brightness_mean = np.mean(gray)
+        contrast_std = np.std(gray)
+        
+        # Detección de caras
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        
+        # Saliency - Reemplazado por valor por defecto
+        # No disponible en opencv-python-headless
+        saliency_score = 0.0
+        saliency_center = [0.5, 0.5]  # Centro por defecto
+        
+        # pHash
+        phash = str(imagehash.phash(img))
+        
+        return {
+            'dominant_color': dominant_color,
+            'palette': palette,
+            'brightness_mean': float(brightness_mean),
+            'contrast_std': float(contrast_std),
+            'faces_count': len(faces),
+            'saliency_score': float(saliency_score),
+            'saliency_center': saliency_center,
+            'phash': phash
+        }
     
-    # Dominant color y paleta (usando k-means simplificado)
-    pixels = img_cv.reshape((-1, 3))
-    pixels = np.float32(pixels)
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    _, labels, centers = cv2.kmeans(
-        pixels, 5, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
-    )
-    centers = np.uint8(centers)
-    dominant_color = '#%02x%02x%02x' % tuple(centers[0].tolist())
-    palette = ['#%02x%02x%02x' % tuple(color.tolist()) for color in centers]
-    
-    # Brillo y contraste
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    brightness_mean = np.mean(gray)
-    contrast_std = np.std(gray)
-    
-    # Detección de caras
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-    
-    # Saliency (aproximación simplificada)
-    saliency = cv2.saliency.StaticSaliencyFineGrained_create()
-    _, saliency_map = saliency.computeSaliency(img_cv)
-    saliency_score = np.mean(saliency_map)
-    saliency_center = [0.5, 0.5]  # Centro por defecto
-    
-    # pHash
-    phash = str(imagehash.phash(img))
-    
-    return {
-        'dominant_color': dominant_color,
-        'palette': palette,
-        'brightness_mean': float(brightness_mean),
-        'contrast_std': float(contrast_std),
-        'faces_count': len(faces),
-        'saliency_score': float(saliency_score),
-        'saliency_center': saliency_center,
-        'phash': phash
-    }
+    except Exception as e:
+        print(f"Error in thumbnail analysis: {str(e)}")
+        return None
 
 # --- Funciones existentes modificadas ---
 def load_env():
