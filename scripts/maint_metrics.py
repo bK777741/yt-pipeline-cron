@@ -5,7 +5,7 @@ Actualiza métricas de los últimos 50 vídeos importados.
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
@@ -41,27 +41,43 @@ def fetch_video_metrics(yt, video_id: str):
     if not resp.get("items"):
         return {}
     stats = resp["items"][0]["statistics"]
+    
+    # Convertir a enteros (maneja valores faltantes)
+    def safe_int(value):
+        try:
+            return int(value) if value else None
+        except (TypeError, ValueError):
+            return None
+            
     return {
-        "view_count": stats.get("viewCount"),
-        "like_count": stats.get("likeCount"),
-        "comment_count": stats.get("commentCount"),
+        "view_count": safe_int(stats.get("viewCount")),
+        "like_count": safe_int(stats.get("likeCount")),
+        "comment_count": safe_int(stats.get("commentCount")),
     }
 
-def upsert_metrics(sb: Client, video_id: str, metrics: dict):
-    row = {"video_id": video_id, **metrics, "updated_at": "now()"}
-    sb.table("video_statistics").upsert(row, on_conflict=["video_id"]).execute()
+def upsert_metrics(sb: Client, video_id: str, metrics: dict, snapshot_date: str):
+    row = {
+        "video_id": video_id,
+        "snapshot_date": snapshot_date,  # Nueva clave compuesta
+        "view_count": metrics.get("view_count"),
+        "like_count": metrics.get("like_count"),
+        "comment_count": metrics.get("comment_count")
+    }
+    sb.table("video_statistics").upsert(row, on_conflict=["video_id", "snapshot_date"]).execute()
 
 def main():
     creds, supabase_url, supabase_key = load_env()
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
     vids = fetch_recent_videos(sb, limit=50)
+    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")  # Fecha en UTC
+    
     for vid in vids:
         m = fetch_video_metrics(yt, vid)
         if m:
-            upsert_metrics(sb, vid, m)
+            upsert_metrics(sb, vid, m, snapshot_date)
 
-    print(f"[maint_metrics] Métricas actualizadas para {len(vids)} vídeos")
+    print(f"[maint_metrics] Métricas actualizadas para {len(vids)} vídeos (snapshot: {snapshot_date})")
 
 if __name__ == "__main__":
     main()
