@@ -147,7 +147,8 @@ jobs:
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          MAX_COMMENTS_PER_VIDEO: ${{ secrets.MAX_COMMENTS_PER_VIDEO }}
+          MAX_VIDEOS_PER_RUN:   ${{ secrets.MAX_VIDEOS_PER_RUN || '50' }}
+          MAX_COMMENTS_PER_VIDEO: ${{ secrets.MAX_COMMENTS_PER_VIDEO || '500' }}
 
       - name: Notify failure by email
         if: failure()
