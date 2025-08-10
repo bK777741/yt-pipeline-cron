@@ -1,40 +1,55 @@
 name: YouTube → Supabase pipeline
 
+concurrency:
+  group: youtube-supabase-cron
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
   schedule:
-    - cron: "0 7 * * *"     # import_daily (02:00 Lima)
-    - cron: "15 7 * * *"    # import_captions (02:15 Lima)
-    - cron: "30 7 * * *"    # import_recent_comments (02:30 Lima) # NUEVO
-    - cron: "45 7 * * *"    # reconcile_comments (02:45 Lima)
-    - cron: "0 8 * * *"     # sentiment_analysis (03:00 Lima)
-    - cron: "15 8 * * *"    # purge_buffer (03:15 Lima)
-    - cron: "0 9 * * *"     # maint_metrics (04:00 Lima)
-    - cron: "0 10 * * *"    # fetch_video_analytics (05:00 Lima)
-    - cron: "0 11 * * *"    # fetch_monetization_metrics (06:00 Lima)
-    - cron: "30 10 * * *"   # compute_posting_schedule (05:30 Lima)
-    - cron: "30 11 * * *"   # fetch_trending_videos (06:30 Lima)
-    - cron: "45 11 * * *"   # fetch_search_trends (06:45 Lima)
-    - cron: "0 14 1,16 * *" # policy_monitor (09:00 Lima, días 1 y 16)
+    - cron: "0 7 * * *"      # import_daily (07:00 UTC)
+    - cron: "15 7 * * *"     # import_captions (07:15 UTC)
+    - cron: "30 7 * * *"     # import_recent_comments (07:30 UTC)
+    - cron: "45 7 * * *"     # reconcile_comments (07:45 UTC)
+    - cron: "0 8 * * *"      # fetch_comment_sentiment (08:00 UTC)
+    - cron: "0 9 * * *"      # maint_metrics (09:00 UTC)
+    - cron: "0 10 * * *"     # fetch_video_analytics (10:00 UTC)
+    - cron: "30 10 * * *"    # compute_posting_schedule (10:30 UTC)
+    - cron: "0 11 * * *"     # fetch_monetization_metrics (11:00 UTC)
+    - cron: "30 11 * * *"    # fetch_trending_videos (11:30 UTC)
+    - cron: "45 11 * * *"    # fetch_search_trends (11:45 UTC)
+    - cron: "0 14 1,16 * *"  # fetch_youtube_policies (14:00 UTC, días 1 y 16)
+    - cron: "55 4 * * *"     # purge_buffer (04:55 UTC)
 
 jobs:
   import_daily:
     name: Import daily videos
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 7 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -70,14 +85,24 @@ jobs:
     name: Import captions
     runs-on: ubuntu-latest
     needs: import_daily
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '15 7 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run import_captions.py
         run: python ./scripts/import_captions.py
@@ -108,14 +133,24 @@ jobs:
     name: Import recent comments
     runs-on: ubuntu-latest
     needs: import_captions
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 7 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run import_recent_comments.py
         run: python ./scripts/import_recent_comments.py
@@ -125,8 +160,7 @@ jobs:
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          MAX_VIDEOS_PER_RUN:   "50"
-          MAX_COMMENTS_PER_VIDEO: "200"
+          MAX_COMMENTS_PER_VIDEO: ${{ secrets.MAX_COMMENTS_PER_VIDEO }}
 
       - name: Notify failure by email
         if: failure()
@@ -148,14 +182,24 @@ jobs:
     name: Reconcile comments
     runs-on: ubuntu-latest
     needs: import_recent_comments
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '45 7 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run reconcile_comments.py
         run: python ./scripts/reconcile_comments.py
@@ -182,18 +226,28 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  sentiment_analysis:
+  fetch_comment_sentiment:
     name: Analyze comment sentiment
     runs-on: ubuntu-latest
     needs: reconcile_comments
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 8 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
@@ -222,51 +276,27 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  purge_buffer:
-    name: Purge buffer with backup
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-      - run: pip install -r requirements.txt
-      - name: Run purge_buffer.py
-        run: python ./scripts/purge_buffer.py
-        env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
   maint_metrics:
     name: Maintain metrics
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 9 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run maint_metrics.py
         run: python ./scripts/maint_metrics.py
@@ -296,14 +326,24 @@ jobs:
   fetch_video_analytics:
     name: Fetch video analytics
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 10 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run fetch_video_analytics.py
         run: python ./scripts/fetch_video_analytics.py
@@ -330,17 +370,71 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  fetch_monetization_metrics:
-    name: Fetch monetization metrics
+  compute_posting_schedule:
+    name: Compute posting schedule
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 10 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - run: pip install -r requirements.txt
+      - name: Run compute_posting_schedule.py
+        run: python ./scripts/compute_posting_schedule.py
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  fetch_monetization_metrics:
+    name: Fetch monetization metrics
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 11 * * *' }}
+    strategy:
+      max-attempts: 2
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run fetch_monetization_metrics.py
         run: python ./scripts/fetch_monetization_metrics.py
@@ -367,43 +461,12 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  compute_posting_schedule:
-    name: Compute posting schedule
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-      - run: pip install -r requirements.txt
-      - name: Run compute_posting_schedule.py
-        run: python ./scripts/compute_posting_schedule.py
-        env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
   fetch_trending_videos:
     name: Fetch trending videos
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 11 * * *' }}
+    strategy:
+      max-attempts: 2
     continue-on-error: true
     defaults:
       run:
@@ -416,10 +479,17 @@ jobs:
       MAX_LONGS_PER_DAY: 15
       PAGES_PER_REGION: 1
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run fetch_trending_videos.py
         run: python ./scripts/fetch_trending_videos.py
@@ -455,14 +525,24 @@ jobs:
   fetch_search_trends:
     name: Fetch search trends
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '45 11 * * *' }}
+    strategy:
+      max-attempts: 2
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
       - name: Run fetch_search_trends.py
         run: |
@@ -492,15 +572,33 @@ jobs:
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  policy_monitor:
+  fetch_youtube_policies:
     name: Fetch YouTube policies
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 14 1,16 * *' }}
+    strategy:
+      max-attempts: 2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - run: pip install -r requirements.txt
+      - name: Check day of month
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          current_day=$(date -u +%d)
+          if [[ "$current_day" != "01" && "$current_day" != "16" ]]; then
+            echo "Skipping because today is not 1st or 16th"
+            exit 0
+          fi
       - name: Run fetch_youtube_policies.py
         run: python ./scripts/fetch_youtube_policies.py
         env:
@@ -524,6 +622,50 @@ jobs:
           subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ env.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  purge_buffer:
+    name: Purge buffer
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '55 4 * * *' }}
+    strategy:
+      max-attempts: 2
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - run: pip install -r requirements.txt
+      - name: Run purge_buffer.py
+        run: python ./scripts/purge_buffer.py
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow failed 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
