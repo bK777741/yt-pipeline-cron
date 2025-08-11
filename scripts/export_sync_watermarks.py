@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 # Configuración
 logging.basicConfig(level=logging.INFO)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Usar service key
+# Obtener service key de SUPABASE_SERVICE_KEY o SUPABASE_KEY
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_KEY')  # Usar service key
 
 # Mapeo corregido de columnas de timestamp por tabla
 TIMESTAMP_COLUMNS = {
@@ -22,6 +23,11 @@ TIMESTAMP_COLUMNS = {
 
 # Tablas temporales para pruebas
 TABLES = ["videos", "comments", "video_analytics"]
+
+# Crear cliente con service key
+if not SUPABASE_KEY:
+    logging.error("No SUPABASE_SERVICE_KEY o SUPABASE_KEY en variables de entorno")
+    exit(1)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
