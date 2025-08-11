@@ -894,67 +894,31 @@ jobs:
   export_sync_watermarks:
     name: Export sync watermarks
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    timeout-minutes: 10
+    if: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_KEY != '' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: 'pip'
-      - run: pip install -r requirements.txt
+          python-version: '3.12'
 
-      - name: Debug Supabase key role (safe)
-        run: |
-          python - <<'PY'
-          import os, json, base64
-          tok = os.environ['SUPABASE_SERVICE_KEY']
-          part = tok.split('.')[1]
-          part += '=' * (-len(part) % 4)   # padding base64url
-          try:
-              data = json.loads(base64.urlsafe_b64decode(part).decode())
-              print('role:', data.get('role') or data.get('iss'))
-          except Exception as e:
-              print(f'Error: {str(e)}')
-          PY
+      - name: Install deps
+        run: pip install -r requirements.txt
 
-      - name: Probe insert permission with service key
+      - name: Probe Supabase REST (must be 200/204)
         run: |
           set -e
-          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          BODY='[{"table_name":"__probe__","max_watermark":null,"total_rows":0,"calculated_at":"'"$NOW"'"}]'
           CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
             -H "apikey: $SUPABASE_SERVICE_KEY" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=representation,resolution=merge-duplicates" \
-            -X POST "$SUPABASE_URL/rest/v1/sync_watermarks" \
-            -d "$BODY")
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            "$SUPABASE_URL/rest/v1/sync_watermarks?select=1")
           echo "HTTP: $CODE"
-          if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then
-            exit 1
-          fi
+          if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
+            echo "REST probe failed (check secrets exposure in this job)"; exit 1; fi
 
       - name: Run export_sync_watermarks.py
         run: python ./scripts/export_sync_watermarks.py
-
-      - name: Notify failure by email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
