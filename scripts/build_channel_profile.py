@@ -19,24 +19,24 @@ model = SentenceTransformer(MODEL_NAME)
 EMBEDDING_DIM = model.get_sentence_embedding_dimension()
 
 def fetch_channel_content():
-    # Obtener videos más recientes
+    # Obtener videos más recientes (corregido: usar video_id en lugar de id)
     videos = supabase.table('videos') \
-        .select('id, title, description') \
+        .select('video_id, title, description, published_at') \
         .order('published_at', desc=True) \
         .limit(TOP_N) \
         .execute().data
     
-    # Obtener scripts para los videos
-    video_ids = [v['id'] for v in videos]
+    # Obtener scripts para los videos (corregido: usar script en lugar de text)
+    video_ids = [v['video_id'] for v in videos]
     scripts = supabase.table('video_scripts') \
-        .select('video_id, text') \
+        .select('video_id, script') \
         .in_('video_id', video_ids) \
         .execute().data
     
     # Combinar datos
-    script_dict = {s['video_id']: s['text'] for s in scripts}
+    script_dict = {s['video_id']: s['script'] for s in scripts}
     for video in videos:
-        video['script'] = script_dict.get(video['id'], '')
+        video['script'] = script_dict.get(video['video_id'], '')
     
     return videos
 
@@ -76,8 +76,9 @@ def main():
         logging.warning("No channel content found")
         return
     
+    # Corregido: usar video_id en lugar de id
     texts = [f"{item['title']} {item['description']} {item['script']}" for item in content]
-    video_ids = [item['id'] for item in content]
+    video_ids = [item['video_id'] for item in content]
     
     embeddings = generate_embeddings(texts)
     centroids = cluster_embeddings(embeddings)
