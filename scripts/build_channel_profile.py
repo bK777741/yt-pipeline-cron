@@ -1,3 +1,4 @@
+# scripts/build_channel_profile.py
 import os
 import json
 import numpy as np
@@ -10,7 +11,7 @@ import logging
 # Configuración
 logging.basicConfig(level=logging.INFO)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Usar service key
 TOP_N = int(os.getenv('NICHES_TOP_N_VIDEOS', 120))
 MODEL_NAME = 'all-MiniLM-L6-v2'
 
