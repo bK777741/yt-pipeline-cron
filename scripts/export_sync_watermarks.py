@@ -1,3 +1,4 @@
+# scripts/export_sync_watermarks.py
 import os
 from supabase import create_client
 import logging
@@ -6,7 +7,7 @@ from datetime import datetime
 # Configuración
 logging.basicConfig(level=logging.INFO)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Usar service key
 
 # Mapeo corregido de columnas de timestamp por tabla
 TIMESTAMP_COLUMNS = {
@@ -18,6 +19,9 @@ TIMESTAMP_COLUMNS = {
     'video_trending_filtered': 'created_at',
     'channel_profile_embeddings': 'created_at'
 }
+
+# Tablas temporales para pruebas
+TABLES = ["videos", "comments", "video_analytics"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -69,7 +73,7 @@ def save_watermarks(watermarks):
 def main():
     watermarks = {}
     
-    for table in TIMESTAMP_COLUMNS.keys():
+    for table in TABLES:  # Solo procesar tablas temporales
         try:
             stats = get_table_watermark(table)
             watermarks[table] = stats
