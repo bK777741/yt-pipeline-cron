@@ -1,3 +1,4 @@
+# .github/workflows/cron.yml
 name: YouTube → Supabase pipeline
 
 concurrency:
@@ -137,7 +138,7 @@ jobs:
     name: Convert captions to script
     runs-on: ubuntu-latest
     needs: import_captions
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '15 7 * * *' }}
+    if: false
     continue-on-error: true
     defaults:
       run:
@@ -150,7 +151,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - name: Run convert_captions_to_script.py
-        run: python ./scripts/convert_captions_to_script.py
+        run: echo "disabled for now"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -675,7 +676,7 @@ jobs:
     name: Detect thumbnail objects
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: false
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -701,7 +702,7 @@ jobs:
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run detect_thumbnail_objects.py
-        run: python ./scripts/detect_thumbnail_objects.py
+        run: echo "disabled for now"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -730,7 +731,7 @@ jobs:
     name: Extract thumbnail text
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OCR_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: false
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -755,7 +756,7 @@ jobs:
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run extract_thumbnail_text.py
-        run: python ./scripts/extract_thumbnail_text.py
+        run: echo "disabled for now"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -834,7 +835,7 @@ jobs:
     name: Refine trending with niche
     runs-on: ubuntu-latest
     needs: [fetch_trending_videos, build_channel_profile]
-    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: false
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -859,7 +860,7 @@ jobs:
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run refine_trending_with_niche.py
-        run: python ./scripts/refine_trending_with_niche.py
+        run: echo "disabled for now"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -893,7 +894,7 @@ jobs:
   export_sync_watermarks:
     name: Export sync watermarks
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
