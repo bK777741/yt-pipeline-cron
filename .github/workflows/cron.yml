@@ -905,11 +905,43 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
+
+      - name: Debug Supabase key role (safe)
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python - <<'PY'
+          import os, json, base64
+          k = os.environ['SUPABASE_SERVICE_KEY']
+          # Split the JWT token
+          parts = k.split('.')
+          # Add padding to the middle part and decode
+          payload = parts[1] + '=' * (4 - (len(parts[1]) % 4)
+          payload = base64.urlsafe_b64decode(payload)
+          payload = json.loads(payload)
+          print('supabase_key_role =', payload.get('role'))
+          PY
+
       - name: Run export_sync_watermarks.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python ./scripts/export_sync_watermarks.py
+
+      - name: Probe insert permission with service key
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -e
+          echo '[{"table_name":"probe","calculated_at":"2025-01-01T00:00:00Z","total_rows":0,"max_watermark":"0"}]' > /tmp/p.json
+          curl -i "$SUPABASE_URL/rest/v1/sync_watermarks" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/p.json
 
       - name: Notify failure by email
         if: failure()
