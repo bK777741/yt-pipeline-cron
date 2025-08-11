@@ -2,7 +2,7 @@
 import os
 from supabase import create_client
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
@@ -58,7 +58,7 @@ def get_table_watermark(table):
 
 def save_watermarks(watermarks):
     data = []
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     
     for table, stats in watermarks.items():
         data.append({
