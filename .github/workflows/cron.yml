@@ -895,6 +895,9 @@ jobs:
     name: Export sync watermarks
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -906,52 +909,39 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
 
-      - name: Check Supabase key role (safe)
-        env:
-          JWT: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Debug Supabase key role (safe)
         run: |
-          PAYLOAD=$(echo "$JWT" | cut -d. -f2 | base64 -d 2>/dev/null || true)
-          echo "role: $(echo "$PAYLOAD" | python - "$PAYLOAD" <<'PY'
-import sys, json
-try:
-    d = json.loads(sys.stdin.read())
-    print(d.get('role', 'unknown'))
-except:
-    print("invalid")
-PY
-)"
+          python - <<'PY'
+          import os, json, base64
+          tok = os.environ['SUPABASE_SERVICE_KEY']
+          part = tok.split('.')[1]
+          part += '=' * (-len(part) % 4)   # padding base64url
+          try:
+              data = json.loads(base64.urlsafe_b64decode(part).decode())
+              print('role:', data.get('role') or data.get('iss'))
+          except Exception as e:
+              print(f'Error: {str(e)}')
+          PY
 
-      - name: Run export_sync_watermarks.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_KEY: ""
-        run: python ./scripts/export_sync_watermarks.py
-
-      - name: Probe insert with service key
-        if: always()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Probe insert permission with service key
         run: |
           set -e
-          ts=$(date -u +%FT%TZ)
-          data="[{
-            \"table_name\": \"_probe\",
-            \"max_watermark\": \"$ts\",
-            \"total_rows\": 0,
-            \"calculated_at\": \"$ts\"
-          }]"
-          code=$(curl -s -o /dev/stderr -w "%{http_code}" \
-            -X POST "$SUPABASE_URL/rest/v1/sync_watermarks" \
-            -H "apikey: $SUPABASE_SERVICE_KEY" \
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          BODY='[{"table_name":"__probe__","max_watermark":null,"total_rows":0,"calculated_at":"'"$NOW"'"}]'
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
             -H "Content-Type: application/json" \
-            -d "$data")
-          echo "HTTP $code"
-          if [ "$code" != "201" ] && [ "$code" != "200" ]; then
+            -H "Prefer: return=representation,resolution=merge-duplicates" \
+            -X POST "$SUPABASE_URL/rest/v1/sync_watermarks" \
+            -d "$BODY")
+          echo "HTTP: $CODE"
+          if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then
             exit 1
           fi
+
+      - name: Run export_sync_watermarks.py
+        run: python ./scripts/export_sync_watermarks.py
 
       - name: Notify failure by email
         if: failure()
