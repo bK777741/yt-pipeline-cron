@@ -19,25 +19,33 @@ model = SentenceTransformer(MODEL_NAME)
 EMBEDDING_DIM = model.get_sentence_embedding_dimension()
 
 def fetch_channel_content():
-    # Obtener videos más recientes (corregido: usar video_id en lugar de id)
+    # Obtener videos más recientes
     videos = supabase.table('videos') \
         .select('video_id, title, description, published_at') \
         .order('published_at', desc=True) \
         .limit(TOP_N) \
         .execute().data
     
-    # Obtener scripts para los videos (corregido: usar script en lugar de text)
+    if not videos:
+        return []
+
     video_ids = [v['video_id'] for v in videos]
+
+    # Traer ambos campos y decidir en Python
     scripts = supabase.table('video_scripts') \
-        .select('video_id, script') \
+        .select('video_id, script_structured, transcript_clean') \
         .in_('video_id', video_ids) \
         .execute().data
-    
-    # Combinar datos
-    script_dict = {s['video_id']: s['script'] for s in scripts}
-    for video in videos:
-        video['script'] = script_dict.get(video['video_id'], '')
-    
+
+    # Usar script_structured si existe, si no transcript_clean
+    by_id = {
+        s['video_id']: (s.get('script_structured') or s.get('transcript_clean') or '')
+        for s in scripts
+    }
+
+    for v in videos:
+        v['script'] = by_id.get(v['video_id'], '')
+
     return videos
 
 def generate_embeddings(texts):
@@ -76,7 +84,6 @@ def main():
         logging.warning("No channel content found")
         return
     
-    # Corregido: usar video_id en lugar de id
     texts = [f"{item['title']} {item['description']} {item['script']}" for item in content]
     video_ids = [item['video_id'] for item in content]
     
