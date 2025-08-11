@@ -1,8 +1,8 @@
 name: YouTube → Supabase pipeline
 
 concurrency:
-  group: youtube-supabase-cron
-  cancel-in-progress: false
+  group: cron-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
@@ -48,13 +48,14 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
       - name: Install system dependencies (OCR/OpenCV)
+        if: ${{ env.THUMB_OCR_ENABLED == 'true' || env.THUMB_OBJECTS_ENABLED == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr libgl1
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Run import_daily.py with retry
         uses: nick-invision/retry@v3
@@ -674,7 +675,7 @@ jobs:
     name: Detect thumbnail objects
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'schedule' && env.THUMB_OBJECTS_ENABLED == 'true' }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -688,13 +689,16 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
 
-      - name: Install system dependencies (OpenCV)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1
-
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ultralytics
+            ~/.cache/torch
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run detect_thumbnail_objects.py
         run: python ./scripts/detect_thumbnail_objects.py
@@ -726,7 +730,7 @@ jobs:
     name: Extract thumbnail text
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OCR_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'schedule' && env.THUMB_OCR_ENABLED == 'true' }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -740,13 +744,15 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
 
-      - name: Install system dependencies (Tesseract)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run extract_thumbnail_text.py
         run: python ./scripts/extract_thumbnail_text.py
@@ -777,7 +783,7 @@ jobs:
   build_channel_profile:
     name: Build channel profile
     runs-on: ubuntu-latest
-    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name != 'schedule' || github.event.schedule == '45 10 * * 0') }}
+    if: ${{ github.event_name == 'schedule' && env.NICHES_EMBEDDING_ENABLED == 'true' }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -793,6 +799,13 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run build_channel_profile.py
         run: python ./scripts/build_channel_profile.py
@@ -821,7 +834,7 @@ jobs:
     name: Refine trending with niche
     runs-on: ubuntu-latest
     needs: [fetch_trending_videos, build_channel_profile]
-    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'schedule' && env.NICHES_EMBEDDING_ENABLED == 'true' }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -837,6 +850,13 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run refine_trending_with_niche.py
         run: python ./scripts/refine_trending_with_niche.py
