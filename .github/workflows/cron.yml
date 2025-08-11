@@ -906,10 +906,10 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - name: Run export_sync_watermarks.py
-        run: python ./scripts/export_sync_watermarks.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ./scripts/export_sync_watermarks.py
 
       - name: Notify failure by email
         if: failure()
@@ -920,7 +920,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱😱😱'
+          subject: 'YT→Supabase: Workflow failed 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
