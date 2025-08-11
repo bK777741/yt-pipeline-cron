@@ -920,7 +920,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow failed 😱😱😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
