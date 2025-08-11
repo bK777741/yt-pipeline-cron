@@ -8,11 +8,11 @@ logging.basicConfig(level=logging.INFO)
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
-# Mapeo de columnas de timestamp por tabla (corregido: reemplazar metrics por video_analytics)
+# Mapeo corregido de columnas de timestamp por tabla
 TIMESTAMP_COLUMNS = {
     'videos': 'imported_at',
     'comments': 'imported_at',
-    'video_analytics': 'imported_at',  # Corregido: tabla real
+    'video_analytics': 'snapshot_date',   # Columna corregida
     'video_thumbnail_objects': 'detected_at',
     'video_thumbnail_text': 'extracted_at',
     'video_trending_filtered': 'created_at',
@@ -23,6 +23,13 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_table_watermark(table):
     timestamp_col = TIMESTAMP_COLUMNS.get(table)
+    
+    if not timestamp_col:
+        logging.warning(f"No timestamp column defined for table: {table}")
+        return {
+            'max_watermark': None,
+            'total_rows': 0
+        }
     
     # Obtener máximo timestamp
     max_query = supabase.table(table) \
