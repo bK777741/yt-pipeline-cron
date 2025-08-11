@@ -675,7 +675,7 @@ jobs:
     name: Detect thumbnail objects
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ github.event_name == 'schedule' && env.THUMB_OBJECTS_ENABLED == 'true' }}
+    if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -730,7 +730,7 @@ jobs:
     name: Extract thumbnail text
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ github.event_name == 'schedule' && env.THUMB_OCR_ENABLED == 'true' }}
+    if: ${{ vars.THUMB_OCR_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -783,7 +783,7 @@ jobs:
   build_channel_profile:
     name: Build channel profile
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && env.NICHES_EMBEDDING_ENABLED == 'true' }}
+    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -834,7 +834,7 @@ jobs:
     name: Refine trending with niche
     runs-on: ubuntu-latest
     needs: [fetch_trending_videos, build_channel_profile]
-    if: ${{ github.event_name == 'schedule' && env.NICHES_EMBEDDING_ENABLED == 'true' }}
+    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -893,7 +893,7 @@ jobs:
   export_sync_watermarks:
     name: Export sync watermarks
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '55 4 * * *' }}
+    if: ${{ always() }}
     defaults:
       run:
         working-directory: ${{ github.workspace }}
