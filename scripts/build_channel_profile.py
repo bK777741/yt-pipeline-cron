@@ -10,12 +10,19 @@ import logging
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')  # Usar service key
+
+# Hardened initialization
+url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 TOP_N = int(os.getenv('NICHES_TOP_N_VIDEOS', 120))
 MODEL_NAME = 'all-MiniLM-L6-v2'
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+if not url:
+    raise SystemExit("Missing or empty SUPABASE_URL")
+if not key:
+    raise SystemExit("Missing or empty SUPABASE_SERVICE_KEY")
+
+supabase = create_client(url, key)
 model = SentenceTransformer(MODEL_NAME)
 EMBEDDING_DIM = model.get_sentence_embedding_dimension()
 
