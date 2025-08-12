@@ -892,15 +892,15 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   export_sync_watermarks:
-    name: Export sync watermarks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -910,40 +910,19 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Sanity-check Supabase env (safe)
-        shell: bash
-        run: |
-          set -e
-          echo "URL host: $(echo "$SUPABASE_URL" | sed -E 's~https?://([^/]+)/?.*~\1~')"
-          echo "URL ends with /rest/v1 ? $(echo "$SUPABASE_URL" | grep -c '/rest/v1$' || true)"
-          echo "SERVICE KEY length: ${#SUPABASE_SERVICE_KEY}"
-          python - <<'PY'
-import os, base64, json
-key=os.environ.get("SUPABASE_SERVICE_KEY","")
-role="unknown"
-try:
-    parts=key.split('.')
-    if len(parts)>=2:
-        payload=parts[1]
-        pad='=' * (-len(payload)%4)
-        data=base64.urlsafe_b64decode(payload+pad)
-        role=json.loads(data).get('role','unknown')
-except Exception as e:
-    role=f"decode_error: {e}"
-print("JWT role:", role)
-PY
-
+      # Probar REST sin here-doc (evita errores de YAML)
       - name: Probe Supabase REST (must be 200/204)
         shell: bash
         run: |
           set -e
           CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: $SUPABASE_SERVICE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
-            -H "Accept: application/json" \
-            "$SUPABASE_URL/rest/v1/sync_watermarks?select=table_name&limit=1")
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/sync_watermarks?select=table_name&limit=1")
           echo "HTTP: $CODE"
-          test "$CODE" = "200" -o "$CODE" = "204"
+          if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
+            echo "REST probe failed (check secrets exposure in this job)"; exit 1
+          fi
 
       - name: Run export_sync_watermarks.py
         run: python ./scripts/export_sync_watermarks.py
