@@ -5,16 +5,17 @@ from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # SOLO esta, sin fallback
+# Hardened initialization to prevent errors from malformed env vars
+url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 
-if not SUPABASE_URL:
-    raise SystemExit("Missing SUPABASE_URL")
+if not url:
+    raise SystemExit("Missing or empty SUPABASE_URL")
 
-if not SUPABASE_KEY:
-    raise SystemExit("Missing SUPABASE_SERVICE_KEY")
+if not key:
+    raise SystemExit("Missing or empty SUPABASE_SERVICE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(url, key)
 
 # Mapeo corregido de columnas de timestamp por tabla
 TIMESTAMP_COLUMNS = {
