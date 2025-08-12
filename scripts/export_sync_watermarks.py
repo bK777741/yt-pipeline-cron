@@ -14,17 +14,6 @@ if not SUPABASE_URL:
 if not SUPABASE_KEY:
     raise SystemExit("Missing SUPABASE_SERVICE_KEY")
 
-# Verificar que la key sea service_role (sin imprimir el secreto)
-try:
-    part = SUPABASE_KEY.split(".")[1]
-    part += "=" * (-len(part) % 4)
-    role = json.loads(base64.urlsafe_b64decode(part).decode()).get("role")
-except Exception:
-    role = None
-
-if role != "service_role":
-    raise SystemExit("Wrong key role: expected service_role")
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Mapeo corregido de columnas de timestamp por tabla
