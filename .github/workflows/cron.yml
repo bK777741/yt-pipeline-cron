@@ -893,11 +893,9 @@ jobs:
 
   export_sync_watermarks:
     runs-on: ubuntu-latest
-
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -910,18 +908,19 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # Probar REST sin here-doc (evita errores de YAML)
       - name: Probe Supabase REST (must be 200/204)
         shell: bash
         run: |
           set -e
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/sync_watermarks?select=table_name&limit=1")
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/videos?select=video_id&limit=1")
           echo "HTTP: $CODE"
           if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
-            echo "REST probe failed (check secrets exposure in this job)"; exit 1
+            echo "REST probe failed (check secrets exposure in this job)"
+            exit 1
           fi
 
       - name: Run export_sync_watermarks.py
