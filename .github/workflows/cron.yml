@@ -893,9 +893,6 @@ jobs:
 
   export_sync_watermarks:
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -913,15 +910,24 @@ jobs:
         run: |
           set -e
           CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "apikey: $SUPABASE_SERVICE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
             -H "Accept: application/json" \
-            "$SUPABASE_URL/rest/v1/videos?select=video_id&limit=1")
+            "${{ secrets.SUPABASE_URL }}/rest/v1/videos?select=video_id&limit=1")
           echo "HTTP: $CODE"
           if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
             echo "REST probe failed (check secrets exposure in this job)"
             exit 1
           fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Run export_sync_watermarks.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # Forzar a NO usar ninguna otra key por accidente
+          SUPABASE_KEY: ""
+          SUPABASE_ANON_KEY: ""
         run: python ./scripts/export_sync_watermarks.py
