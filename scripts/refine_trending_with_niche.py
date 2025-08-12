@@ -7,8 +7,11 @@ import logging
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_URL = (os.getenv('SUPABASE_URL') or '').strip()
+SUPABASE_KEY = (os.getenv('SUPABASE_SERVICE_KEY') or '').strip()
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY")
+
 SIM_THRESHOLD = float(os.getenv('NICHES_SIM_THRESHOLD', 0.78))
 MODEL_NAME = 'all-MiniLM-L6-v2'
 
