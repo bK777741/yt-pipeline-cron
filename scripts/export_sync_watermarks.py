@@ -1,20 +1,29 @@
 # scripts/export_sync_watermarks.py
-import os
+import os, base64, json, logging
 from supabase import create_client
-import logging
 from datetime import datetime, timezone
 
-# Configuración
 logging.basicConfig(level=logging.INFO)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # <-- solo service key
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # SOLO esta, sin fallback
 
 if not SUPABASE_URL:
     raise SystemExit("Missing SUPABASE_URL")
 
 if not SUPABASE_KEY:
     raise SystemExit("Missing SUPABASE_SERVICE_KEY")
+
+# Verificar que la key sea service_role (sin imprimir el secreto)
+try:
+    part = SUPABASE_KEY.split(".")[1]
+    part += "=" * (-len(part) % 4)
+    role = json.loads(base64.urlsafe_b64decode(part).decode()).get("role")
+except Exception:
+    role = None
+
+if role != "service_role":
+    raise SystemExit("Wrong key role: expected service_role")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
