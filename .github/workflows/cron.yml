@@ -909,6 +909,30 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
+      - name: Sanity-check Supabase env (safe)
+        shell: bash
+        run: |
+          set -e
+          echo "URL host: $(echo "$SUPABASE_URL" | sed -E 's~https?://([^/]+)/?.*~\1~')"
+          echo "URL ends with /rest/v1 ? $(echo "$SUPABASE_URL" | grep -c '/rest/v1$' || true)"
+          echo "SERVICE KEY length: ${#SUPABASE_SERVICE_KEY}"
+
+          python - <<'PY'
+import os, base64, json
+key = os.environ.get("SUPABASE_SERVICE_KEY","")
+role = "unknown"
+try:
+    parts = key.split('.')
+    if len(parts) >= 2:
+        payload = parts[1]
+        pad = '=' * (-len(payload) % 4)
+        data = base64.urlsafe_b64decode(payload + pad)
+        role = json.loads(data).get('role', 'unknown')
+except Exception as e:
+    role = f"decode_error: {e}"
+print("JWT role:", role)
+PY
+
       - name: Probe Supabase REST (must be 200/204)
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_KEY != '' }}
         shell: bash
