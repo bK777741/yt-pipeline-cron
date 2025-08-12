@@ -911,15 +911,19 @@ jobs:
 
       - name: Probe Supabase REST (must be 200/204)
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_KEY != '' }}
+        shell: bash
         run: |
           set -e
-          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "apikey: $SUPABASE_SERVICE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
-            "$SUPABASE_URL/rest/v1/sync_watermarks?select=1")
+            -H "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/sync_watermarks?select=table_name&limit=1")
           echo "HTTP: $CODE"
-          if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
-            echo "REST probe failed (check secrets exposure in this job)"; exit 1; fi
+          test "$CODE" = "200" -o "$CODE" = "204"
 
       - name: Run export_sync_watermarks.py
         run: python ./scripts/export_sync_watermarks.py
+        env:
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
