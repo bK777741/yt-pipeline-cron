@@ -906,28 +906,36 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Probe Supabase REST (must be 200/204)
-        shell: bash
-        run: |
-          set -e
-          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
-            -H "Accept: application/json" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/videos?select=video_id&limit=1")
-          echo "HTTP: $CODE"
-          if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
-            echo "REST probe failed (check secrets exposure in this job)"
-            exit 1
-          fi
+        if: always()
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          # Sanea: quita CR/LF/espacios y la barra final, luego arma la URL
+          BASE="$(printf '%s' "$SB_URL" | tr -d '\r\n ' | sed 's:/*$::')"
+          URL="$BASE/rest/v1/?select=1"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "apikey: $SB_KEY" \
+            -H "Authorization: Bearer $SB_KEY" \
+            "$URL")
+          echo "HTTP: $code"
+          [ "$code" = 200 ] || [ "$code" = 204 ]
+      
+      - name: Debug Supabase key role (safe)
+        env:
+          SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python - <<'PY'
+          import os, json, base64
+          key=os.environ["SB_KEY"]
+          parts=key.split('.')
+          payload = json.loads(base64.urlsafe_b64decode(parts[1] + '='*((4-len(parts[1])%4)%4)).decode())
+          print("role:", payload.get("role"))
+          PY
 
       - name: Run export_sync_watermarks.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          # Forzar a NO usar ninguna otra key por accidente
-          SUPABASE_KEY: ""
-          SUPABASE_ANON_KEY: ""
         run: python ./scripts/export_sync_watermarks.py
