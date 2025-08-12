@@ -22,17 +22,31 @@ def fetch_trending_candidates():
     return supabase.table('video_trending').select('*').execute().data
 
 def fetch_channel_profile():
-    return supabase.table('channel_profile_embeddings').select('embedding').execute().data
+    # Trae todas las columnas y detecta el nombre real de la columna de embeddings
+    rows = supabase.table('channel_profile_embeddings').select('*').execute().data
+    if not rows:
+        return [], None  # no hay perfil aún
 
-def filter_videos(videos, profile_embeddings):
-    profile_matrix = np.array([item['embedding'] for item in profile_embeddings])
+    candidate_cols = ('embedding', 'embedding_vector', 'profile_embedding', 'vector')
+    emb_col = next((c for c in candidate_cols if c in rows[0]), None)
+    if not emb_col:
+        cols = list(rows[0].keys())
+        raise RuntimeError(f"No se encontró la columna de embeddings en channel_profile_embeddings. Columnas: {cols}")
+
+    # Devuelve la lista de vectores y el nombre detectado de la columna
+    return [r[emb_col] for r in rows], emb_col
+
+def filter_videos(videos, profile_vectors):
+    profile_matrix = np.array(profile_vectors)
     filtered = []
     for video in videos:
-        video_embedding = model.encode([video['title'] + video['description']])[0]
+        # Título + descripción (con fallback por si alguno viene null)
+        txt = (video.get('title') or '') + ' ' + (video.get('description') or '')
+        video_embedding = model.encode([txt])[0]
         similarities = cosine_similarity([video_embedding], profile_matrix)[0]
-        max_sim = np.max(similarities)
+        max_sim = float(np.max(similarities))
         if max_sim >= SIM_THRESHOLD:
-            video['niche_similarity'] = float(max_sim)
+            video['niche_similarity'] = max_sim
             filtered.append(video)
     return filtered
 
@@ -47,12 +61,13 @@ def save_filtered_videos(videos):
 
 def main():
     candidates = fetch_trending_candidates()
-    profile = fetch_channel_profile()
-    if not profile:
+    profile_vectors, emb_col = fetch_channel_profile()
+    if not profile_vectors:
         logging.warning("No channel profile found. Skipping refinement.")
         return
-    
-    filtered = filter_videos(candidates, profile)
+
+    logging.info(f"Usando columna de embeddings: {emb_col}")
+    filtered = filter_videos(candidates, profile_vectors)
     save_filtered_videos(filtered)
     logging.info(f"Filtered {len(filtered)}/{len(candidates)} trending videos")
 
