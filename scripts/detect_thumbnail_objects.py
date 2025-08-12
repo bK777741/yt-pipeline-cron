@@ -11,8 +11,11 @@ from PIL import Image
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_URL = (os.getenv('SUPABASE_URL') or '').strip()
+SUPABASE_KEY = (os.getenv('SUPABASE_SERVICE_KEY') or '').strip()
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY")
+
 BATCH_SIZE = int(os.getenv('BATCH_SIZE_THUMBS', 120))
 MODEL_NAME = os.getenv('OBJ_MODEL', 'yolov8n')
 CLASSES_WHITELIST = os.getenv('OBJ_CLASSES_WHITELIST', '').split(',') if os.getenv('OBJ_CLASSES_WHITELIST') else None
