@@ -895,7 +895,7 @@ jobs:
     name: Export sync watermarks
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_KEY != '' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -910,6 +910,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Probe Supabase REST (must be 200/204)
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_KEY != '' }}
         run: |
           set -e
           CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
