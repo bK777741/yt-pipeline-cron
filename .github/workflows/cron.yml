@@ -63,13 +63,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/import_daily.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/import_daily.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
           CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
           ENABLE_THUMBNAIL_OCR: "true"
@@ -110,13 +114,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/import_captions.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/import_captions.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -153,8 +161,8 @@ jobs:
       - name: Run convert_captions_to_script.py
         run: echo "disabled for now"
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SCRIPT_LANG: 'es'
           SCRIPT_MAX_PER_RUN: '20'
           SCRIPT_ORTHO_ENABLED: 'true'
@@ -202,13 +210,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/import_recent_comments.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/import_recent_comments.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           MAX_VIDEOS_PER_RUN:   ${{ secrets.MAX_VIDEOS_PER_RUN || '50' }}
           MAX_COMMENTS_PER_VIDEO: ${{ secrets.MAX_COMMENTS_PER_VIDEO || '500' }}
 
@@ -248,13 +260,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/reconcile_comments.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/reconcile_comments.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -297,10 +313,14 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/fetch_comment_sentiment.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_comment_sentiment.py
         env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -337,13 +357,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/maint_metrics.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/maint_metrics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -380,13 +404,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/fetch_video_analytics.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_video_analytics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -423,10 +451,14 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/compute_posting_schedule.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/compute_posting_schedule.py
         env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -463,13 +495,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/fetch_monetization_metrics.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_monetization_metrics.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -514,11 +550,15 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 20
-          command: python ./scripts/fetch_trending_videos.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_trending_videos.py
         env:
           YOUTUBE_API_KEY:     ${{ secrets.YOUTUBE_API_KEY }}
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:    ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CHANNEL_ID:          ${{ secrets.CHANNEL_ID }}
 
       - name: Upload artifact
@@ -565,13 +605,17 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/fetch_search_trends.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_search_trends.py
         env:
           YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CHANNEL_NAME:         ${{ secrets.CHANNEL_NAME }}
 
       - name: Notify failure by email
@@ -606,10 +650,14 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 15
-          command: python ./scripts/fetch_youtube_policies.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_youtube_policies.py
         env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CONTACT_EMAIL:        "jvillarreal0991@gmail.com"
           POLICY_URLS:          ${{ secrets.POLICY_URLS }}
           POLICY_MAX_CHARS:     "12000"
@@ -651,10 +699,14 @@ jobs:
         with:
           max_attempts: 2
           timeout_minutes: 10
-          command: python ./scripts/purge_buffer.py
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/purge_buffer.py
         env:
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Notify failure by email
         if: failure()
@@ -704,8 +756,8 @@ jobs:
       - name: Run detect_thumbnail_objects.py
         run: echo "disabled for now"
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OBJ_MODEL: ${{ secrets.OBJ_MODEL || 'yolov8n' }}
           OBJ_CLASSES_WHITELIST: ${{ secrets.OBJ_CLASSES_WHITELIST || 'person,face,hand,cell phone,book,laptop' }}
           BATCH_SIZE_THUMBS: ${{ secrets.BATCH_SIZE_THUMBS || '120' }}
@@ -758,8 +810,8 @@ jobs:
       - name: Run extract_thumbnail_text.py
         run: echo "disabled for now"
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           OCR_LANGS: ${{ secrets.OCR_LANGS || 'spa+eng' }}
           OCR_MIN_CONF: ${{ secrets.OCR_MIN_CONF || '0.60' }}
           BATCH_SIZE_THUMBS: ${{ secrets.BATCH_SIZE_THUMBS || '120' }}
@@ -809,11 +861,15 @@ jobs:
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
 
       - name: Run build_channel_profile.py
-        run: python ./scripts/build_channel_profile.py
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NICHES_TOP_N_VIDEOS: ${{ secrets.NICHES_TOP_N_VIDEOS || '120' }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ./scripts/build_channel_profile.py
 
       - name: Notify failure by email
         if: failure()
@@ -862,8 +918,8 @@ jobs:
       - name: Run refine_trending_with_niche.py
         run: echo "disabled for now"
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NICHES_SIM_THRESHOLD: ${{ secrets.NICHES_SIM_THRESHOLD || '0.78' }}
           NICHES_TAXONOMY_ENFORCE: ${{ secrets.NICHES_TAXONOMY_ENFORCE || 'false' }}
           NICHES_WHITELIST_L2: ${{ secrets.NICHES_WHITELIST_L2 || '' }}
@@ -936,6 +992,10 @@ jobs:
 
       - name: Run export_sync_watermarks.py
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/export_sync_watermarks.py
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ./scripts/export_sync_watermarks.py
