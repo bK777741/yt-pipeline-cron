@@ -902,7 +902,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -916,25 +917,23 @@ jobs:
           echo "URL host: $(echo "$SUPABASE_URL" | sed -E 's~https?://([^/]+)/?.*~\1~')"
           echo "URL ends with /rest/v1 ? $(echo "$SUPABASE_URL" | grep -c '/rest/v1$' || true)"
           echo "SERVICE KEY length: ${#SUPABASE_SERVICE_KEY}"
-
           python - <<'PY'
 import os, base64, json
-key = os.environ.get("SUPABASE_SERVICE_KEY","")
-role = "unknown"
+key=os.environ.get("SUPABASE_SERVICE_KEY","")
+role="unknown"
 try:
-    parts = key.split('.')
-    if len(parts) >= 2:
-        payload = parts[1]
-        pad = '=' * (-len(payload) % 4)
-        data = base64.urlsafe_b64decode(payload + pad)
-        role = json.loads(data).get('role', 'unknown')
+    parts=key.split('.')
+    if len(parts)>=2:
+        payload=parts[1]
+        pad='=' * (-len(payload)%4)
+        data=base64.urlsafe_b64decode(payload+pad)
+        role=json.loads(data).get('role','unknown')
 except Exception as e:
-    role = f"decode_error: {e}"
+    role=f"decode_error: {e}"
 print("JWT role:", role)
 PY
 
       - name: Probe Supabase REST (must be 200/204)
-        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_KEY != '' }}
         shell: bash
         run: |
           set -e
@@ -948,6 +947,3 @@ PY
 
       - name: Run export_sync_watermarks.py
         run: python ./scripts/export_sync_watermarks.py
-        env:
-          SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
