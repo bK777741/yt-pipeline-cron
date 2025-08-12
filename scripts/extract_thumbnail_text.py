@@ -11,8 +11,11 @@ from datetime import datetime
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+SUPABASE_URL = (os.getenv('SUPABASE_URL') or '').strip()
+SUPABASE_KEY = (os.getenv('SUPABASE_SERVICE_KEY') or '').strip()
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY")
+
 BATCH_SIZE = int(os.getenv('BATCH_SIZE_THUMBS', 120))
 LANGUAGES = os.getenv('OCR_LANGS', 'spa+eng')
 MIN_CONFIDENCE = float(os.getenv('OCR_MIN_CONF', 0.60))
