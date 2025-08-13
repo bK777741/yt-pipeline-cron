@@ -2,23 +2,16 @@
 name: YouTube → Supabase pipeline
 
 # ========= CONFIGURACIÓN GLOBAL DEL WORKFLOW =========
-# Se define una política de concurrencia para asegurar que solo una instancia
-# de este workflow se ejecute a la vez por rama, cancelando ejecuciones
-# anteriores si se dispara una nueva.
 concurrency:
   group: cron-${{ github.ref }}
   cancel-in-progress: true
 
-# Variables de entorno globales para habilitar/deshabilitar funcionalidades
-# específicas en todo el pipeline.
 env:
   THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
   THUMB_OCR_ENABLED: ${{ vars.THUMB_OCR_ENABLED || 'false' }}
   NICHES_EMBEDDING_ENABLED: ${{ vars.NICHES_EMBEDDING_ENABLED || 'false' }}
 
 # ========= DISPARADORES (TRIGGERS) DEL WORKFLOW =========
-# El workflow se puede ejecutar manualmente (workflow_dispatch),
-# con cada push a la rama main, o según los horarios programados (cron).
 on:
   workflow_dispatch:
   push:
@@ -43,9 +36,6 @@ on:
 jobs:
   # =====================================================================================
   # PASO 1: IMPORTACIÓN DE DATOS INICIAL (BLOQUE CRÍTICO)
-  # COMENTARIO: Este es el job más crítico. Inicia el pipeline importando los videos
-  # del día. Su éxito es indispensable para la mayoría de los jobs posteriores.
-  # No se ha modificado su lógica, solo su posición como punto de partida claro.
   # =====================================================================================
   import_daily:
     name: "PASO 1: Importar Videos Diarios (Crítico)"
@@ -60,7 +50,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - name: Instalar dependencias del sistema (OCR/OpenCV)
-        if: ${{ env.THUMB_OCR_ENABLED == 'true' || env.THUMB_OBJECTS_ENABLED == 'true' }}
+        if: ${{ vars.THUMB_OCR_ENABLED == 'true' || vars.THUMB_OBJECTS_ENABLED == 'true' }} # CORRECCIÓN: Usar 'vars' aquí también es más robusto.
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr libgl1
@@ -103,9 +93,6 @@ jobs:
 
   # =====================================================================================
   # PASO 2 (PARALELO): PROCESAMIENTO DEPENDIENTE DE LA IMPORTACIÓN
-  # COMENTARIO: Todos los jobs en esta sección dependen únicamente de 'import_daily'.
-  # Se han configurado para ejecutarse en PARALELO inmediatamente después de que
-  # 'import_daily' termine, lo que representa la mayor ganancia de tiempo.
   # =====================================================================================
   import_captions:
     name: "PASO 2a: Importar Subtítulos (Paralelo)"
@@ -176,7 +163,8 @@ jobs:
     name: "PASO 2c: Detectar Objetos en Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ env.THUMB_OBJECTS_ENABLED == 'true' && needs.import_daily.result == 'success' }}
+    # CORRECCIÓN: Se usa el contexto 'vars' en lugar de 'env' para la condición del job.
+    if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' && needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -191,7 +179,8 @@ jobs:
     name: "PASO 2d: Extraer Texto de Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ env.THUMB_OCR_ENABLED == 'true' && needs.import_daily.result == 'success' }}
+    # CORRECCIÓN: Se usa el contexto 'vars' en lugar de 'env' para la condición del job.
+    if: ${{ vars.THUMB_OCR_ENABLED == 'true' && needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -204,8 +193,6 @@ jobs:
 
   # =====================================================================================
   # PASO 3: PROCESAMIENTO SECUNDARIO (DEPENDENCIAS EN CADENA)
-  # COMENTARIO: Estos jobs dependen de los resultados del PASO 2.
-  # Forman dos cadenas lógicas separadas que se ejecutan en paralelo entre sí.
   # =====================================================================================
   convert_captions_to_script:
     name: "PASO 3a: Convertir Subtítulos a Guion"
@@ -243,8 +230,6 @@ jobs:
 
   # =====================================================================================
   # PASO 4: ANÁLISIS DE SENTIMIENTO (DEPENDE DE LA CADENA DE COMENTARIOS)
-  # COMENTARIO: Este job se ejecuta una vez que la cadena de procesamiento de
-  # comentarios ha finalizado con éxito.
   # =====================================================================================
   fetch_comment_sentiment:
     name: "PASO 4: Analizar Sentimiento de Comentarios"
@@ -263,10 +248,6 @@ jobs:
 
   # =====================================================================================
   # PASO 5: MÉTRICAS Y TENDENCIAS (INDEPENDIENTES Y EN PARALELO)
-  # COMENTARIO: Estos jobs son independientes entre sí y del flujo principal de
-  # importación. Se ejecutan en PARALELO para máxima eficiencia.
-  # 'fetch_trending_videos' mantiene 'continue-on-error' ya que es un paso no
-  # crítico que depende de APIs externas y no debe bloquear el workflow.
   # =====================================================================================
   maint_metrics:
     name: "PASO 5a: Mantener Métricas (Paralelo)"
@@ -441,7 +422,7 @@ jobs:
     name: "PASO 5e: Obtener Videos en Tendencia (No Crítico)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 11 * * *' }}
-    continue-on-error: true # MANTENIDO: Un fallo aquí no detiene el workflow.
+    continue-on-error: true
     env:
       REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
       ALLOWED_LANGS: "es,en,hi,pt"
@@ -541,9 +522,6 @@ jobs:
 
   # =====================================================================================
   # PASO 6: JOBS DE MANTENIMIENTO PESADOS O PERIÓDICOS
-  # COMENTARIO: Estos jobs son importantes pero menos frecuentes o más pesados.
-  # 'build_channel_profile' es clave para el nicho y se ejecuta en paralelo con
-  # el PASO 5. Los otros son jobs de mantenimiento con su propio horario.
   # =====================================================================================
   build_channel_profile:
     name: "PASO 6a: Construir Perfil del Canal (Pesado)"
@@ -593,16 +571,12 @@ jobs:
 
   # =====================================================================================
   # PASO 7: REFINAMIENTO FINAL (JOB DE SÍNTESIS)
-  # COMENTARIO: Este es un job crucial que une los resultados de las tendencias con
-  # el perfil del canal. Se ha modificado para depender explícitamente de
-  # 'fetch_trending_videos' y 'build_channel_profile', asegurando que solo se
-  # ejecute cuando ambos pre-requisitos hayan terminado correctamente.
   # =====================================================================================
   refine_trending_with_niche:
     name: "PASO 7: Refinar Tendencias con Nicho"
     runs-on: ubuntu-latest
-    needs: [fetch_trending_videos, build_channel_profile] # DEPENDENCIA CORREGIDA
-    if: ${{ success() && vars.NICHES_EMBEDDING_ENABLED == 'true' }} # 'success()' asegura que los 'needs' hayan terminado bien (o skippeado con continue-on-error).
+    needs: [fetch_trending_videos, build_channel_profile]
+    if: ${{ success() && vars.NICHES_EMBEDDING_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -615,8 +589,6 @@ jobs:
 
   # =====================================================================================
   # JOBS DE MANTENIMIENTO INDEPENDIENTES Y PROGRAMADOS
-  # COMENTARIO: Estos jobs se mantienen sin cambios lógicos. Son independientes
-  # y se ejecutan según su propio horario definido en la sección 'on.schedule'.
   # =====================================================================================
   fetch_youtube_policies:
     name: "MANTENIMIENTO: Obtener Políticas de YouTube"
@@ -706,7 +678,7 @@ jobs:
   export_sync_watermarks:
     name: "MANTENIMIENTO: Exportar Sync Watermarks"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} # Este job no tiene schedule, se ejecuta en push/manual.
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
