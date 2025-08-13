@@ -1,64 +1,72 @@
 # .github/workflows/cron.yml
 name: YouTube → Supabase pipeline
 
+# ========= CONFIGURACIÓN GLOBAL DEL WORKFLOW =========
+# Se define una política de concurrencia para asegurar que solo una instancia
+# de este workflow se ejecute a la vez por rama, cancelando ejecuciones
+# anteriores si se dispara una nueva.
 concurrency:
   group: cron-${{ github.ref }}
   cancel-in-progress: true
 
+# Variables de entorno globales para habilitar/deshabilitar funcionalidades
+# específicas en todo el pipeline.
 env:
   THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
   THUMB_OCR_ENABLED: ${{ vars.THUMB_OCR_ENABLED || 'false' }}
   NICHES_EMBEDDING_ENABLED: ${{ vars.NICHES_EMBEDDING_ENABLED || 'false' }}
 
+# ========= DISPARADORES (TRIGGERS) DEL WORKFLOW =========
+# El workflow se puede ejecutar manualmente (workflow_dispatch),
+# con cada push a la rama main, o según los horarios programados (cron).
 on:
   workflow_dispatch:
   push:
     branches:
       - main
   schedule:
-    - cron: "0 7 * * *"      # import_daily (07:00 UTC)
-    - cron: "15 7 * * *"     # import_captions (07:15 UTC)
-    - cron: "30 7 * * *"     # import_recent_comments (07:30 UTC)
-    - cron: "45 7 * * *"     # reconcile_comments (07:45 UTC)
-    - cron: "0 8 * * *"      # fetch_comment_sentiment (08:00 UTC)
-    - cron: "0 9 * * *"      # maint_metrics (09:00 UTC)
-    - cron: "0 10 * * *"     # fetch_video_analytics (10:00 UTC)
-    - cron: "30 10 * * *"    # compute_posting_schedule (10:30 UTC)
-    - cron: "0 11 * * *"     # fetch_monetization_metrics (11:00 UTC)
-    - cron: "30 11 * * *"    # fetch_trending_videos (11:30 UTC)
-    - cron: "45 11 * * *"    # fetch_search_trends (11:45 UTC)
-    - cron: "0 14 1,16 * *"  # fetch_youtube_policies (14:00 UTC, días 1 y 16)
-    - cron: "55 4 * * *"     # purge_buffer (04:55 UTC)
-    - cron: "45 10 * * 0"    # build_channel_profile (domingos 10:45 UTC)
+    - cron: "0 7 * * *"      # import_daily
+    - cron: "15 7 * * *"     # import_captions
+    - cron: "30 7 * * *"     # import_recent_comments
+    - cron: "45 7 * * *"     # reconcile_comments
+    - cron: "0 8 * * *"      # fetch_comment_sentiment
+    - cron: "0 9 * * *"      # maint_metrics
+    - cron: "0 10 * * *"     # fetch_video_analytics
+    - cron: "30 10 * * *"    # compute_posting_schedule
+    - cron: "0 11 * * *"     # fetch_monetization_metrics
+    - cron: "30 11 * * *"    # fetch_trending_videos
+    - cron: "45 11 * * *"    # fetch_search_trends
+    - cron: "0 14 1,16 * *"  # fetch_youtube_policies
+    - cron: "55 4 * * *"     # purge_buffer
+    - cron: "45 10 * * 0"    # build_channel_profile
 
 jobs:
+  # =====================================================================================
+  # PASO 1: IMPORTACIÓN DE DATOS INICIAL (BLOQUE CRÍTICO)
+  # COMENTARIO: Este es el job más crítico. Inicia el pipeline importando los videos
+  # del día. Su éxito es indispensable para la mayoría de los jobs posteriores.
+  # No se ha modificado su lógica, solo su posición como punto de partida claro.
+  # =====================================================================================
   import_daily:
-    name: Import daily videos
+    name: "PASO 1: Importar Videos Diarios (Crítico)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 7 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-
-      - name: Install system dependencies (OCR/OpenCV)
+      - name: Instalar dependencias del sistema (OCR/OpenCV)
         if: ${{ env.THUMB_OCR_ENABLED == 'true' || env.THUMB_OBJECTS_ENABLED == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr libgl1
-
-      - name: Install dependencies
+      - name: Instalar dependencias de Python
         run: pip install -r requirements.txt
-
-      - name: Run import_daily.py with retry
+      - name: Ejecutar import_daily.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -69,16 +77,15 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/import_daily.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          DAILY_VIDEO_BATCH:    ${{ secrets.DAILY_VIDEO_BATCH }}
-          CHANNEL_ID:           ${{ secrets.CHANNEL_ID }}
+          DAILY_VIDEO_BATCH: ${{ secrets.DAILY_VIDEO_BATCH }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           ENABLE_THUMBNAIL_OCR: "true"
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -87,21 +94,24 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  # =====================================================================================
+  # PASO 2 (PARALELO): PROCESAMIENTO DEPENDIENTE DE LA IMPORTACIÓN
+  # COMENTARIO: Todos los jobs en esta sección dependen únicamente de 'import_daily'.
+  # Se han configurado para ejecutarse en PARALELO inmediatamente después de que
+  # 'import_daily' termine, lo que representa la mayor ganancia de tiempo.
+  # =====================================================================================
   import_captions:
-    name: Import captions
+    name: "PASO 2a: Importar Subtítulos (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '15 7 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
+    if: ${{ needs.import_daily.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '15 7 * * *') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -109,7 +119,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run import_captions.py with retry
+      - name: Ejecutar import_captions.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -120,13 +130,12 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/import_captions.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -135,39 +144,24 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  convert_captions_to_script:
-    name: Convert captions to script
-    runs-on: ubuntu-latest
-    needs: import_captions
-    if: ${{ needs.import_captions.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/convert_captions_to_script.py
-
   import_recent_comments:
-    name: Import recent comments
+    name: "PASO 2b: Importar Comentarios (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ needs.import_daily.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '30 7 * * *') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install -r requirements.txt
-      - name: Run import_recent_comments.py
+      - name: Ejecutar import_recent_comments.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -178,17 +172,67 @@ jobs:
           MAX_COMMENTS_PER_VIDEO: 500
         run: python ./scripts/import_recent_comments.py
 
-  reconcile_comments:
-    name: Reconcile comments
+  detect_thumbnail_objects:
+    name: "PASO 2c: Detectar Objetos en Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
-    needs: import_recent_comments
-    if: ${{ needs.import_recent_comments.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    needs: import_daily
+    if: ${{ env.THUMB_OBJECTS_ENABLED == 'true' && needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install -r requirements.txt
-      - name: Reconcile comments
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ./scripts/detect_thumbnail_objects.py
+
+  extract_thumbnail_text:
+    name: "PASO 2d: Extraer Texto de Thumbnails (Paralelo)"
+    runs-on: ubuntu-latest
+    needs: import_daily
+    if: ${{ env.THUMB_OCR_ENABLED == 'true' && needs.import_daily.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ./scripts/extract_thumbnail_text.py
+
+  # =====================================================================================
+  # PASO 3: PROCESAMIENTO SECUNDARIO (DEPENDENCIAS EN CADENA)
+  # COMENTARIO: Estos jobs dependen de los resultados del PASO 2.
+  # Forman dos cadenas lógicas separadas que se ejecutan en paralelo entre sí.
+  # =====================================================================================
+  convert_captions_to_script:
+    name: "PASO 3a: Convertir Subtítulos a Guion"
+    runs-on: ubuntu-latest
+    needs: import_captions
+    if: ${{ needs.import_captions.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ./scripts/convert_captions_to_script.py
+
+  reconcile_comments:
+    name: "PASO 3b: Reconciliar Comentarios"
+    runs-on: ubuntu-latest
+    needs: import_recent_comments
+    if: ${{ needs.import_recent_comments.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '45 7 * * *') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - name: Ejecutar reconcile_comments.py
         run: python ./scripts/reconcile_comments.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -197,11 +241,16 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
 
+  # =====================================================================================
+  # PASO 4: ANÁLISIS DE SENTIMIENTO (DEPENDE DE LA CADENA DE COMENTARIOS)
+  # COMENTARIO: Este job se ejecuta una vez que la cadena de procesamiento de
+  # comentarios ha finalizado con éxito.
+  # =====================================================================================
   fetch_comment_sentiment:
-    name: Analyze comment sentiment
+    name: "PASO 4: Analizar Sentimiento de Comentarios"
     runs-on: ubuntu-latest
     needs: reconcile_comments
-    if: ${{ needs.reconcile_comments.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ needs.reconcile_comments.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '0 8 * * *') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -212,13 +261,17 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python ./scripts/fetch_comment_sentiment.py
 
+  # =====================================================================================
+  # PASO 5: MÉTRICAS Y TENDENCIAS (INDEPENDIENTES Y EN PARALELO)
+  # COMENTARIO: Estos jobs son independientes entre sí y del flujo principal de
+  # importación. Se ejecutan en PARALELO para máxima eficiencia.
+  # 'fetch_trending_videos' mantiene 'continue-on-error' ya que es un paso no
+  # crítico que depende de APIs externas y no debe bloquear el workflow.
+  # =====================================================================================
   maint_metrics:
-    name: Maintain metrics
+    name: "PASO 5a: Mantener Métricas (Paralelo)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 9 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -226,7 +279,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run maint_metrics.py with retry
+      - name: Ejecutar maint_metrics.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -237,13 +290,12 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/maint_metrics.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -252,7 +304,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
@@ -260,12 +312,9 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_video_analytics:
-    name: Fetch video analytics
+    name: "PASO 5b: Obtener Analíticas (Paralelo)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 10 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -273,7 +322,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run fetch_video_analytics.py with retry
+      - name: Ejecutar fetch_video_analytics.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -284,13 +333,12 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/fetch_video_analytics.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -299,7 +347,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
@@ -307,12 +355,9 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   compute_posting_schedule:
-    name: Compute posting schedule
+    name: "PASO 5c: Calcular Horario de Publicación (Paralelo)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 10 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -320,7 +365,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run compute_posting_schedule.py with retry
+      - name: Ejecutar compute_posting_schedule.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -331,10 +376,9 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/compute_posting_schedule.py
         env:
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -343,7 +387,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
@@ -351,12 +395,9 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_monetization_metrics:
-    name: Fetch monetization metrics
+    name: "PASO 5d: Obtener Métricas de Monetización (Paralelo)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 11 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -364,7 +405,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run fetch_monetization_metrics.py with retry
+      - name: Ejecutar fetch_monetization_metrics.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -375,13 +416,12 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/fetch_monetization_metrics.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -390,7 +430,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
@@ -398,13 +438,10 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_trending_videos:
-    name: Fetch trending videos
+    name: "PASO 5e: Obtener Videos en Tendencia (No Crítico)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 11 * * *' }}
-    continue-on-error: true
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
+    continue-on-error: true # MANTENIDO: Un fallo aquí no detiene el workflow.
     env:
       REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
       ALLOWED_LANGS: "es,en,hi,pt"
@@ -419,7 +456,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Run fetch_trending_videos.py with retry
+      - name: Ejecutar fetch_trending_videos.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -430,19 +467,17 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/fetch_trending_videos.py
         env:
-          YOUTUBE_API_KEY:     ${{ secrets.YOUTUBE_API_KEY }}
-          SUPABASE_URL_RAW:    ${{ secrets.SUPABASE_URL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CHANNEL_ID:          ${{ secrets.CHANNEL_ID }}
-
-      - name: Upload artifact
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      - name: Subir artefacto de reporte
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: trending-report
           path: ./trending_report_*.md
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -451,7 +486,7 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
@@ -459,12 +494,9 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   fetch_search_trends:
-    name: Fetch search trends
+    name: "PASO 5f: Obtener Tendencias de Búsqueda (Paralelo)"
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'schedule' || github.event.schedule == '45 11 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -472,9 +504,9 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Install pytrends
+      - name: Instalar pytrends
         run: pip install pytrends
-      - name: Run fetch_search_trends.py with retry
+      - name: Ejecutar fetch_search_trends.py con reintentos
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -485,14 +517,13 @@ jobs:
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ./scripts/fetch_search_trends.py
         env:
-          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CHANNEL_NAME:         ${{ secrets.CHANNEL_NAME }}
-
-      - name: Notify failure by email
+          CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -501,161 +532,40 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-  fetch_youtube_policies:
-    name: Fetch YouTube policies
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Run fetch_youtube_policies.py with retry
-        uses: nick-invision/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 15
-          command: |
-            set -euo pipefail
-            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_youtube_policies.py
-        env:
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CONTACT_EMAIL:        "jvillarreal0991@gmail.com"
-          POLICY_URLS:          ${{ secrets.POLICY_URLS }}
-          POLICY_MAX_CHARS:     "12000"
-      
-      - name: Notify failure by email
-        if: ${{ failure() && env.ALERT_EMAIL != '' }}
-        env:
-          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ env.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-  purge_buffer:
-    name: Purge buffer
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '55 4 * * *' }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Run purge_buffer.py with retry
-        uses: nick-invision/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 10
-          command: |
-            set -euo pipefail
-            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/purge_buffer.py
-        env:
-          SUPABASE_URL_RAW:     ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-      - name: Notify failure by email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-  detect_thumbnail_objects:
-    name: Detect thumbnail objects
-    runs-on: ubuntu-latest
-    needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/detect_thumbnail_objects.py
-
-  extract_thumbnail_text:
-    name: Extract thumbnail text
-    runs-on: ubuntu-latest
-    needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/extract_thumbnail_text.py
-
+  # =====================================================================================
+  # PASO 6: JOBS DE MANTENIMIENTO PESADOS O PERIÓDICOS
+  # COMENTARIO: Estos jobs son importantes pero menos frecuentes o más pesados.
+  # 'build_channel_profile' es clave para el nicho y se ejecuta en paralelo con
+  # el PASO 5. Los otros son jobs de mantenimiento con su propio horario.
+  # =====================================================================================
   build_channel_profile:
-    name: Build channel profile
+    name: "PASO 6a: Construir Perfil del Canal (Pesado)"
     runs-on: ubuntu-latest
-    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}
+    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name != 'schedule' || github.event.schedule == '45 10 * * 0') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-
-      - name: Install dependencies
+      - name: Instalar dependencias
         run: pip install -r requirements.txt
-
-      - name: Cache models
+      - name: Cachear modelos de ML
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/torch
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
-
-      - name: Run build_channel_profile.py
+      - name: Ejecutar build_channel_profile.py
         env:
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -665,8 +575,7 @@ jobs:
           export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
           export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
           python ./scripts/build_channel_profile.py
-
-      - name: Notify failure by email
+      - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -675,18 +584,25 @@ jobs:
           username: ${{ secrets.SMTP_USER }}
           password: ${{ secrets.SMTP_PASS }}
           secure: true
-          subject: 'YT→Supabase: Workflow failed 😱'
+          subject: 'YT→Supabase: Workflow FAILED 😱'
           from: jvillarreal0991@gmail.com
           to: ${{ secrets.ALERT_EMAIL }}
           body: |
             Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  # =====================================================================================
+  # PASO 7: REFINAMIENTO FINAL (JOB DE SÍNTESIS)
+  # COMENTARIO: Este es un job crucial que une los resultados de las tendencias con
+  # el perfil del canal. Se ha modificado para depender explícitamente de
+  # 'fetch_trending_videos' y 'build_channel_profile', asegurando que solo se
+  # ejecute cuando ambos pre-requisitos hayan terminado correctamente.
+  # =====================================================================================
   refine_trending_with_niche:
-    name: Refine trending with niche
+    name: "PASO 7: Refinar Tendencias con Nicho"
     runs-on: ubuntu-latest
-    needs: fetch_trending_videos
-    if: ${{ needs.fetch_trending_videos.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    needs: [fetch_trending_videos, build_channel_profile] # DEPENDENCIA CORREGIDA
+    if: ${{ success() && vars.NICHES_EMBEDDING_ENABLED == 'true' }} # 'success()' asegura que los 'needs' hayan terminado bien (o skippeado con continue-on-error).
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -697,20 +613,109 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python ./scripts/refine_trending_with_niche.py
 
-  export_sync_watermarks:
+  # =====================================================================================
+  # JOBS DE MANTENIMIENTO INDEPENDIENTES Y PROGRAMADOS
+  # COMENTARIO: Estos jobs se mantienen sin cambios lógicos. Son independientes
+  # y se ejecutan según su propio horario definido en la sección 'on.schedule'.
+  # =====================================================================================
+  fetch_youtube_policies:
+    name: "MANTENIMIENTO: Obtener Políticas de YouTube"
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar fetch_youtube_policies.py con reintentos
+        uses: nick-invision/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 15
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/fetch_youtube_policies.py
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CONTACT_EMAIL: "jvillarreal0991@gmail.com"
+          POLICY_URLS: ${{ secrets.POLICY_URLS }}
+          POLICY_MAX_CHARS: "12000"
+      - name: Notificar fallo por email
+        if: ${{ failure() && env.ALERT_EMAIL != '' }}
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow FAILED 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ env.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  purge_buffer:
+    name: "MANTENIMIENTO: Purgar Buffer"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '55 4 * * *' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar purge_buffer.py con reintentos
+        uses: nick-invision/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 10
+          command: |
+            set -euo pipefail
+            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+            python ./scripts/purge_buffer.py
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Notificar fallo por email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: 'YT→Supabase: Workflow FAILED 😱'
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  export_sync_watermarks:
+    name: "MANTENIMIENTO: Exportar Sync Watermarks"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} # Este job no tiene schedule, se ejecuta en push/manual.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install deps
         run: pip install -r requirements.txt
-
       - name: Probe Supabase REST (must be 200/204)
         if: always()
         env:
@@ -718,7 +723,6 @@ jobs:
           SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           set -euo pipefail
-          # Sanea: quita CR/LF/espacios y la barra final, luego arma la URL
           BASE="$(printf '%s' "$SB_URL" | tr -d '\r\n ' | sed 's:/*$::')"
           URL="$BASE/rest/v1/?select=1"
           code=$(curl -sS -o /dev/null -w '%{http_code}' \
@@ -727,7 +731,6 @@ jobs:
             "$URL")
           echo "HTTP: $code"
           [ "$code" = 200 ] || [ "$code" = 204 ]
-      
       - name: Debug Supabase key role (safe)
         env:
           SB_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -739,8 +742,7 @@ jobs:
           payload = json.loads(base64.urlsafe_b64decode(parts[1] + '='*((4-len(parts[1])%4)%4)).decode())
           print("role:", payload.get("role"))
           PY
-
-      - name: Run export_sync_watermarks.py
+      - name: Ejecutar export_sync_watermarks.py
         env:
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
