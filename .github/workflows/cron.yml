@@ -18,6 +18,7 @@ on:
     branches:
       - main
   schedule:
+    # Schedules para jobs originales
     - cron: "0 7 * * *"      # import_daily
     - cron: "15 7 * * *"     # import_captions
     - cron: "30 7 * * *"     # import_recent_comments
@@ -31,7 +32,12 @@ on:
     - cron: "45 11 * * *"    # fetch_search_trends
     - cron: "0 14 1,16 * *"  # fetch_youtube_policies
     - cron: "55 4 * * *"     # purge_buffer
-    - cron: "45 10 * * 0"    # build_channel_profile
+
+    # Schedules para el NUEVO MÓDULO AUTO-NICHO
+    - cron: "0 5 * * *"      # build_niche_profile (una vez al día, temprano)
+    - cron: "0 6 * * *"      # scan_competencia_auto_nicho (ronda mañana)
+    - cron: "0 13 * * *"     # scan_competencia_auto_nicho (ronda mediodía)
+    - cron: "0 21 * * *"     # scan_competencia_auto_nicho (ronda noche)
 
 jobs:
   # =====================================================================================
@@ -50,7 +56,7 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - name: Instalar dependencias del sistema (OCR/OpenCV)
-        if: ${{ vars.THUMB_OCR_ENABLED == 'true' || vars.THUMB_OBJECTS_ENABLED == 'true' }} # CORRECCIÓN: Usar 'vars' aquí también es más robusto.
+        if: ${{ vars.THUMB_OCR_ENABLED == 'true' || vars.THUMB_OBJECTS_ENABLED == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr libgl1
@@ -163,7 +169,6 @@ jobs:
     name: "PASO 2c: Detectar Objetos en Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    # CORRECCIÓN: Se usa el contexto 'vars' en lugar de 'env' para la condición del job.
     if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' && needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
@@ -179,7 +184,6 @@ jobs:
     name: "PASO 2d: Extraer Texto de Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    # CORRECCIÓN: Se usa el contexto 'vars' en lugar de 'env' para la condición del job.
     if: ${{ vars.THUMB_OCR_ENABLED == 'true' && needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
@@ -521,73 +525,6 @@ jobs:
             Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   # =====================================================================================
-  # PASO 6: JOBS DE MANTENIMIENTO PESADOS O PERIÓDICOS
-  # =====================================================================================
-  build_channel_profile:
-    name: "PASO 6a: Construir Perfil del Canal (Pesado)"
-    runs-on: ubuntu-latest
-    if: ${{ vars.NICHES_EMBEDDING_ENABLED == 'true' && (github.event_name != 'schedule' || github.event.schedule == '45 10 * * 0') }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: 'pip'
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
-      - name: Cachear modelos de ML
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/torch
-          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v1
-      - name: Ejecutar build_channel_profile.py
-        env:
-          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          NICHES_TOP_N_VIDEOS: ${{ secrets.NICHES_TOP_N_VIDEOS || '120' }}
-        run: |
-          set -euo pipefail
-          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-          python ./scripts/build_channel_profile.py
-      - name: Notificar fallo por email
-        if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow FAILED 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ secrets.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-  # =====================================================================================
-  # PASO 7: REFINAMIENTO FINAL (JOB DE SÍNTESIS)
-  # =====================================================================================
-  refine_trending_with_niche:
-    name: "PASO 7: Refinar Tendencias con Nicho"
-    runs-on: ubuntu-latest
-    needs: [fetch_trending_videos, build_channel_profile]
-    if: ${{ success() && vars.NICHES_EMBEDDING_ENABLED == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/refine_trending_with_niche.py
-
-  # =====================================================================================
   # JOBS DE MANTENIMIENTO INDEPENDIENTES Y PROGRAMADOS
   # =====================================================================================
   fetch_youtube_policies:
@@ -723,3 +660,64 @@ jobs:
           export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
           export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
           python ./scripts/export_sync_watermarks.py
+
+  # =====================================================================================
+  # MÓDULO AUTO-NICHO: PASO 1 - CONSTRUIR PERFIL
+  # =====================================================================================
+  build_niche_profile:
+    name: "Auto-Nicho: Construir Perfil del Canal"
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 5 * * *' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias (incluyendo ML)
+        run: pip install -r requirements.txt
+      - name: Ejecutar script de construcción de perfil
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NICHES_TOP_N_VIDEOS: 150
+        run: python scripts/build_niche_profile.py
+
+  # =====================================================================================
+  # MÓDULO AUTO-NICHO: PASO 2 - ESCANEAR COMPETENCIA
+  # =====================================================================================
+  scan_competencia_auto_nicho:
+    name: "Auto-Nicho: Escanear Competencia"
+    runs-on: ubuntu-latest
+    needs: build_niche_profile
+    if: >
+      needs.build_niche_profile.result == 'success' &&
+      (github.event_name != 'schedule' ||
+      github.event.schedule == '0 6 * * *' ||
+      github.event.schedule == '0 13 * * *' ||
+      github.event.schedule == '0 21 * * *')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Ejecutar script de escaneo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          # --- Configuración de Auto-Nicho ---
+          AUTO_NICHO_SHADOW: ${{ vars.AUTO_NICHO_SHADOW || 'true' }}
+          TH_SHORTS: ${{ vars.TH_SHORTS || 0.65 }}
+          TH_LONGS: ${{ vars.TH_LONGS || 0.70 }}
+          TH_MIN: ${{ vars.TH_MIN || 0.58 }}
+          TARGET_SHORTS: ${{ vars.TARGET_SHORTS || 15 }}
+          TARGET_LONGS: ${{ vars.TARGET_LONGS || 10 }}
+        run: python scripts/scan_competencia_auto_nicho.py
