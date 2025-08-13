@@ -4,10 +4,10 @@ from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 # Configuración
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 SUPABASE_URL = (os.getenv('SUPABASE_URL') or '').strip()
 SUPABASE_KEY = (os.getenv('SUPABASE_SERVICE_KEY') or '').strip()
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -21,11 +21,12 @@ model = SentenceTransformer(MODEL_NAME)
 
 def fetch_trending_candidates():
     """
-    Trae candidatos de la tabla 'video_trending' que hayan sido añadidos
-    en las últimas 48 horas. Se usa 'created_at' para ser más robusto.
+    Opción A (preferida): Trae candidatos de la tabla 'video_trending' para la fecha de ejecución actual.
+    Esto asume que un proceso anterior ya ha poblado la tabla con un 'run_date'.
     """
-    since = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-    return supabase.table('video_trending').select('*').gte('created_at', since).execute().data
+    today = datetime.now(timezone.utc).date().isoformat()
+    logging.info(f"Obteniendo candidatos de trending para la fecha: {today}")
+    return supabase.table('video_trending').select('*').eq('run_date', today).execute().data
 
 def fetch_channel_profile():
     # Trae todas las columnas y detecta el nombre real de la columna de embeddings
@@ -43,24 +44,26 @@ def fetch_channel_profile():
     return [r[emb_col] for r in rows], emb_col
 
 def filter_videos(videos, profile_vectors):
+    if not videos or not profile_vectors:
+        return []
+        
     profile_matrix = np.array(profile_vectors)
     filtered = []
-    for video in videos:
-        # Título + descripción (con fallback por si alguno viene null)
-        txt = (video.get('title') or '') + ' ' + (video.get('description') or '')
-        video_embedding = model.encode([txt])[0]
-        similarities = cosine_similarity([video_embedding], profile_matrix)[0]
-        max_sim = float(np.max(similarities))
+    
+    video_texts = [(v.get('title') or '') + ' ' + (v.get('description') or '') for v in videos]
+    video_embeddings = model.encode(video_texts, show_progress_bar=False)
+    
+    similarities = cosine_similarity(video_embeddings, profile_matrix)
+    
+    for i, video in enumerate(videos):
+        max_sim = float(np.max(similarities[i]))
         if max_sim >= SIM_THRESHOLD:
             video['niche_similarity'] = max_sim
             filtered.append(video)
+            
     return filtered
 
 def save_filtered_videos(videos, region=None):
-    """
-    Guarda los videos filtrados con una lógica de 'insert-only' para el día actual.
-    Verifica los IDs que ya existen para 'run_date' de hoy y solo inserta los nuevos.
-    """
     today = datetime.now(timezone.utc).date().isoformat()
     ids = [v['id'] for v in videos]
     ya = set()
@@ -89,22 +92,33 @@ def save_filtered_videos(videos, region=None):
         })
     if rows:
         supabase.table('video_trending_filtered').insert(rows).execute()
-    
-    # Log de resumen útil
-    print(f"[refine] aceptados={len(rows)} de candidatos={len(videos)}")
 
+    return rows
 
 def main():
+    logging.info("Iniciando job: refine_trending_with_niche")
     candidates = fetch_trending_candidates()
-    profile_vectors, emb_col = fetch_channel_profile()
-    if not profile_vectors:
-        logging.warning("No channel profile found. Skipping refinement.")
+    if not candidates:
+        logging.info("No hay candidatos de trending para procesar hoy. Finalizando.")
         return
 
-    logging.info(f"Usando columna de embeddings: {emb_col}")
-    filtered = filter_videos(candidates, profile_vectors)
-    save_filtered_videos(filtered)
-    logging.info(f"Filtered {len(filtered)}/{len(candidates)} trending videos")
+    profile_vectors, emb_col = fetch_channel_profile()
+    if not profile_vectors:
+        logging.warning("No se encontró perfil de canal (channel_profile_embeddings). Saltando refinamiento.")
+        return
+
+    logging.info(f"Usando columna de embeddings '{emb_col}' para el perfil.")
+    filtered_videos = filter_videos(candidates, profile_vectors)
+    
+    inserted_rows = []
+    if filtered_videos:
+        logging.info(f"Guardando {len(filtered_videos)} videos que superaron el umbral.")
+        inserted_rows = save_filtered_videos(filtered_videos)
+    else:
+        logging.info("Ningún video superó el umbral de similitud.")
+
+    print(f"[refine] aceptados={len(inserted_rows)} de {len(candidates)} candidatos (tras dedup por día)")
+    logging.info(f"Job finalizado.")
 
 if __name__ == '__main__':
     main()
