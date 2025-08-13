@@ -18,7 +18,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise SystemExit("ERROR: SUPABASE_URL y SUPABASE_SERVICE_KEY son obligatorios.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-MODEL_NAME = 'all-MiniLM-L6-v2'
+MODEL_NAME = os.getenv('NICHES_EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
 model = SentenceTransformer(MODEL_NAME)
 EMBEDDING_DIM = model.get_sentence_embedding_dimension()
 
@@ -34,8 +34,6 @@ def fetch_own_videos():
     """
     logging.info(f"Obteniendo los últimos {TOP_N_VIDEOS} videos para construir el perfil de nicho.")
     try:
-        # Ponderamos por una combinación de novedad y vistas.
-        # Esta consulta es un ejemplo, podría necesitar ajuste según el esquema exacto.
         response = supabase.table('videos').select(
             'video_id, title, description, views, published_at'
         ).order('published_at', desc=True).limit(TOP_N_VIDEOS).execute()
@@ -55,34 +53,20 @@ def calculate_niche_vector(videos: list):
     if not videos:
         return None, []
 
-    # 1. Preparar textos y pesos de ponderación
-    texts = []
-    weights = []
+    texts = [f"{v.get('title', '')}. {v.get('description', '')}" for v in videos]
     
-    # Normalización de vistas para ponderación (evita que un solo video viral domine todo)
-    all_views = [v.get('views', 0) for v in videos]
-    max_views = max(all_views) if all_views else 1
-    
-    for v in videos:
-        # Texto combinado para embedding
-        texts.append(f"{v.get('title', '')}. {v.get('description', '')}")
-        
-        # Ponderación: 50% por novedad, 50% por rendimiento normalizado.
-        # La novedad se infiere por el orden de la query. Aquí damos más peso a los más recientes.
-        recency_weight = 1.0 - (videos.index(v) / len(videos)) # Linealmente decreciente
-        performance_weight = (v.get('views', 0) / max_views)
-        
-        weights.append(0.5 * recency_weight + 0.5 * performance_weight)
+    # Ponderación simple por novedad (más peso a los más recientes)
+    weights = np.linspace(1.5, 0.5, num=len(videos))
 
-    logging.info("Generando embeddings para los textos de los videos.")
+    logging.info(f"Generando embeddings para {len(texts)} textos con el modelo '{MODEL_NAME}'.")
     embeddings = model.encode(texts, show_progress_bar=False)
     
-    # 2. Calcular Niche Vector ponderado
-    niche_vector = np.average(embeddings, axis=0, weights=np.array(weights))
+    # Calcular Niche Vector ponderado
+    niche_vector = np.average(embeddings, axis=0, weights=weights)
     
-    # 3. Calcular términos clave con TF-IDF
+    # Calcular términos clave con TF-IDF
     logging.info("Calculando términos clave con TF-IDF.")
-    vectorizer = TfidfVectorizer(max_features=25, stop_words='english') # Se puede adaptar a 'spanish'
+    vectorizer = TfidfVectorizer(max_features=25, stop_words='english')
     vectorizer.fit_transform(texts)
     top_terms = vectorizer.get_feature_names_out().tolist()
 
@@ -97,34 +81,31 @@ def save_profile_to_storage(niche_vector: np.ndarray, top_terms: list):
         return
 
     profile_data = {
+        "model": MODEL_NAME,
         "ts": datetime.now(timezone.utc).isoformat(),
         "embedding_dim": int(EMBEDDING_DIM),
         "nv": niche_vector.tolist(),
         "tfidf_top_terms": top_terms,
         "lang_primary": "es",
         "weights": {
-            # Pesos por defecto para el script de escaneo.
-            "sim_nv": 0.70, # Aumentado porque no hay clasificador
-            "clf_prob": 0.0,
-            "vph": 0.20,    # Aumentado
-            "eng": 0.10     # Aumentado
+            "sim_nv": 0.6,
+            "vph": 0.25,
+            "eng": 0.15
         }
     }
 
-    # Convertir a bytes para subirlo
     profile_bytes = json.dumps(profile_data, indent=2).encode('utf-8')
 
     try:
-        # Upsert del archivo en Storage
-        supabase.storage.from_('models').remove([MODEL_FILE_PATH]) # Elimina el anterior para evitar conflictos
-        supabase.storage.from_('models').upload(
+        logging.info(f"Subiendo perfil de nicho '{MODEL_FILE_PATH}' al bucket '{STORAGE_BUCKET}'...")
+        supabase.storage.from_(STORAGE_BUCKET).upload(
             path=MODEL_FILE_PATH,
             file=profile_bytes,
             file_options={"content-type": "application/json", "upsert": "true"}
         )
-        logging.info(f"Perfil de nicho guardado exitosamente en Storage: 'models/{MODEL_FILE_PATH}'")
+        logging.info(f"Perfil de nicho (nv.json) guardado exitosamente en Supabase Storage.")
     except Exception as e:
-        logging.error(f"Error al guardar el perfil de nicho en Supabase Storage: {e}")
+        logging.error(f"FATAL: No se pudo subir el perfil de nicho a Storage: {e}")
 
 def main():
     logging.info("Iniciando job: build_niche_profile")
