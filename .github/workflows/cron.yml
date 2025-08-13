@@ -676,6 +676,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: 'pip'
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
       - name: Instalar dependencias (incluyendo ML)
         run: pip install -r requirements.txt
       - name: Ejecutar script de construcción de perfil
@@ -706,6 +714,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: 'pip'
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
       - name: Instalar dependencias
         run: pip install -r requirements.txt
       - name: Ejecutar script de escaneo
