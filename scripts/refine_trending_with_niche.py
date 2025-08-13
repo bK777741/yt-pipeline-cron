@@ -4,6 +4,7 @@ from supabase import create_client
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
+from datetime import datetime, timedelta, timezone
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
@@ -13,13 +14,18 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY")
 
 SIM_THRESHOLD = float(os.getenv('NICHES_SIM_THRESHOLD', 0.78))
-MODEL_NAME = 'all-MiniLM-L6-v2'
+MODEL_NAME = os.getenv('NICHES_EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 model = SentenceTransformer(MODEL_NAME)
 
 def fetch_trending_candidates():
-    return supabase.table('video_trending').select('*').execute().data
+    """
+    Trae candidatos de la tabla 'video_trending' que hayan sido añadidos
+    en las últimas 48 horas. Se usa 'created_at' para ser más robusto.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    return supabase.table('video_trending').select('*').gte('created_at', since).execute().data
 
 def fetch_channel_profile():
     # Trae todas las columnas y detecta el nombre real de la columna de embeddings
@@ -50,14 +56,43 @@ def filter_videos(videos, profile_vectors):
             filtered.append(video)
     return filtered
 
-def save_filtered_videos(videos):
-    for video in videos:
-        data = {
-            'video_id': video['id'],
-            'similarity_score': video['niche_similarity'],
-            'reason': 'Above similarity threshold'
-        }
-        supabase.table('video_trending_filtered').upsert(data).execute()
+def save_filtered_videos(videos, region=None):
+    """
+    Guarda los videos filtrados con una lógica de 'insert-only' para el día actual.
+    Verifica los IDs que ya existen para 'run_date' de hoy y solo inserta los nuevos.
+    """
+    today = datetime.now(timezone.utc).date().isoformat()
+    ids = [v['id'] for v in videos]
+    ya = set()
+    if ids:
+        exist = supabase.table('video_trending_filtered') \
+            .select('video_id') \
+            .eq('run_date', today) \
+            .in_('video_id', ids) \
+            .execute().data
+        ya = {r['video_id'] for r in (exist or [])}
+
+    rows = []
+    for v in videos:
+        if v['id'] in ya:
+            continue
+        rows.append({
+            'run_date': today,
+            'video_id': v['id'],
+            'region': v.get('region') or region,
+            'title': v.get('title'),
+            'channel_title': v.get('channel_title'),
+            'score': float(v.get('niche_similarity', 0.0)),
+            'sim_to_profile': float(v.get('niche_similarity', 0.0)),
+            'passed': True,
+            'reason': '>= similarity threshold',
+        })
+    if rows:
+        supabase.table('video_trending_filtered').insert(rows).execute()
+    
+    # Log de resumen útil
+    print(f"[refine] aceptados={len(rows)} de candidatos={len(videos)}")
+
 
 def main():
     candidates = fetch_trending_candidates()
