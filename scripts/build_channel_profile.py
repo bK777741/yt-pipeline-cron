@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 TOP_N = int(os.getenv('NICHES_TOP_N_VIDEOS', 120))
-MODEL_NAME = 'all-MiniLM-L6-v2'
+MODEL_NAME = os.getenv('NICHES_EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
 
 if not url:
     raise SystemExit("Missing or empty SUPABASE_URL")
@@ -60,9 +60,16 @@ def generate_embeddings(texts):
     return model.encode(texts)
 
 def cluster_embeddings(embeddings, n_clusters=5):
-    kmeans = KMeans(n_clusters=n_clusters)
-    kmeans.fit(embeddings)
-    return kmeans.cluster_centers_
+    """
+    Ejecuta KMeans de forma determinista y segura. Ajusta el número de clusters
+    si hay menos muestras que los clusters deseados.
+    """
+    n = min(n_clusters, len(embeddings))
+    if n < 1:
+        return []
+    km = KMeans(n_clusters=n, n_init=10, random_state=42)
+    km.fit(embeddings)
+    return km.cluster_centers_
 
 def save_profile(centroids, video_ids):
     data = []
