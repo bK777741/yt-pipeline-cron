@@ -583,19 +583,15 @@ jobs:
           python-version: "3.12"
           cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: Ejecutar purge_buffer.py con reintentos
+      - name: Run purge_buffer.py
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 10
-          command: |
-            set -euo pipefail
-            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/purge_buffer.py
+          command: python -u ./scripts/purge_buffer.py
         env:
-          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
