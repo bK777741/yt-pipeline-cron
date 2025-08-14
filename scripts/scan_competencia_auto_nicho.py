@@ -3,7 +3,8 @@ import os
 import json
 import numpy as np
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import isodate # Necesario para parsear duración ISO 8601
 from supabase import create_client, Client
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -27,17 +28,40 @@ STORAGE_BUCKET = 'models'
 REPORTS_BUCKET = 'reports'
 MODEL_FILE_PATH = 'nv.json'
 
-# Umbrales y Cuotas leídos de variables de entorno
+# --- Umbrales por Formato ---
 TH_SHORTS = float(os.getenv('TH_SHORTS', 0.65))
 TH_LONGS = float(os.getenv('TH_LONGS', 0.70))
-TH_MIN = float(os.getenv('TH_MIN', 0.58)) # Umbral mínimo de similitud para ser considerado
+TH_MIN = float(os.getenv('TH_MIN', 0.58))
 
+# --- Helpers ---
+def parse_iso8601_duration(duration_str: str) -> float:
+    """Parsea una duración ISO 8601 (ej. 'PT1M30S') a segundos."""
+    if not duration_str or not duration_str.startswith('PT'):
+        return 0.0
+    try:
+        duration = isodate.parse_duration(duration_str)
+        return duration.total_seconds()
+    except (isodate.ISO8601Error, TypeError):
+        return 0.0
+
+def percentile_scaler(data: np.ndarray) -> np.ndarray:
+    """Escala los datos a un rango [0, 1] usando percentiles 5 y 95."""
+    if data.size == 0:
+        return data
+    min_val = np.percentile(data, 5)
+    max_val = np.percentile(data, 95)
+    if max_val == min_val:
+        return np.zeros_like(data)
+    scaled = (data - min_val) / (max_val - min_val)
+    return np.clip(scaled, 0, 1)
+
+# --- Funciones Principales ---
 def fetch_niche_profile():
     """Descarga y carga el modelo de nicho (nv.json) desde Supabase Storage."""
     try:
         logging.info(f"Descargando perfil de nicho desde '{STORAGE_BUCKET}/{MODEL_FILE_PATH}'...")
-        response = supabase.storage.from_(STORAGE_BUCKET).download(MODEL_FILE_PATH)
-        profile = json.loads(response.read())
+        response_bytes = supabase.storage.from_(STORAGE_BUCKET).download(MODEL_FILE_PATH)
+        profile = json.loads(response_bytes.read())
         profile['nv'] = np.array(profile['nv'])
         logging.info(f"Perfil de nicho cargado (Modelo: {profile.get('model')}).")
         return profile
@@ -46,9 +70,7 @@ def fetch_niche_profile():
         return None
 
 def fetch_trending_candidates_for_scoring():
-    """
-    Lee los videos de la tabla 'video_trending' del día para puntuarlos contra el perfil de nicho.
-    """
+    """Lee los videos de la tabla 'video_trending' del día actual."""
     today = datetime.now(timezone.utc).date().isoformat()
     logging.info(f"Obteniendo candidatos de la tabla 'video_trending' con run_date={today}")
     try:
@@ -59,25 +81,70 @@ def fetch_trending_candidates_for_scoring():
         logging.error(f"No se pudieron obtener candidatos de 'video_trending'. Error: {e}")
         return []
 
+def preprocess_candidates(candidates):
+    """
+    Calcula y normaliza VPH y ENG para el pool de candidatos, separando por formato.
+    """
+    now = datetime.now(timezone.utc)
+    for v in candidates:
+        # --- Alineación de campos y cálculo de señales crudas ---
+        v['duration_seconds'] = parse_iso8601_duration(v.get('duration'))
+        
+        # VPH
+        published_at_str = v.get('published_at')
+        if published_at_str:
+            published_dt = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
+            hours_since_published = (now - published_dt).total_seconds() / 3600
+            v['vph'] = v.get('views', 0) / hours_since_published if hours_since_published > 1 else 0
+        else:
+            v['vph'] = 0.0
+            
+        # ENG
+        views = v.get('views', 0)
+        likes = v.get('likes', 0)
+        comments = v.get('comment_count', 0)
+        v['eng'] = ((likes + comments) / views) * 100 if views > 0 else 0.0
+
+    # --- Normalización por formato ---
+    shorts = [v for v in candidates if v['duration_seconds'] <= 60]
+    longs = [v for v in candidates if v['duration_seconds'] > 60]
+
+    if shorts:
+        vph_shorts = percentile_scaler(np.array([v['vph'] for v in shorts]))
+        eng_shorts = percentile_scaler(np.array([v['eng'] for v in shorts]))
+        for i, v in enumerate(shorts):
+            v['vph_norm'] = vph_shorts[i]
+            v['eng_norm'] = eng_shorts[i]
+    
+    if longs:
+        vph_longs = percentile_scaler(np.array([v['vph'] for v in longs]))
+        eng_longs = percentile_scaler(np.array([v['eng'] for v in longs]))
+        for i, v in enumerate(longs):
+            v['vph_norm'] = vph_longs[i]
+            v['eng_norm'] = eng_longs[i]
+
+    return shorts + longs
+
 def calculate_score(video: dict, profile: dict):
-    """Calcula el score final para un video candidato."""
+    """Calcula el score final para un video candidato pre-procesado."""
     # 1. Similitud con Niche Vector (sim_nv)
     text = f"{video.get('title', '')}. {video.get('description', '')}"
     embedding = model.encode([text], show_progress_bar=False)
     sim_nv = cosine_similarity(embedding, profile['nv'].reshape(1, -1))[0][0]
     
-    # 2. Señales de rendimiento (si existen en la data de trending)
-    vph_norm = video.get('views_per_hour_norm', 0.0)
-    eng_norm = video.get('engagement_rate_norm', 0.0)
+    # 2. Señales de rendimiento normalizadas (ya calculadas)
+    vph_norm = video.get('vph_norm', 0.0)
+    eng_norm = video.get('eng_norm', 0.0)
 
-    # 4. Ponderación final
-    weights = profile.get('weights', {'sim_nv': 0.6, 'vph': 0.25, 'eng': 0.15})
-    score = (weights['sim_nv'] * sim_nv +
-             weights['vph'] * vph_norm +
-             weights['eng'] * eng_norm)
+    # 3. Ponderación final con defaults
+    weights = profile.get('weights', {})
+    w_sim = weights.get('sim_nv', 0.6)
+    w_vph = weights.get('vph', 0.25)
+    w_eng = weights.get('eng', 0.15)
+    score = (w_sim * sim_nv) + (w_vph * vph_norm) + (w_eng * eng_norm)
 
-    # 5. Penalización por idioma (si aplica)
-    if profile.get('lang_primary') and video.get('lang') != profile['lang_primary']:
+    # 4. Penalización suave por idioma
+    if profile.get('lang_primary') and video.get('lang') and video.get('lang') != profile['lang_primary']:
         score -= 0.05
     
     return float(score), float(sim_nv)
@@ -97,7 +164,7 @@ def save_report_to_storage(bucket, report_data, filename):
             file=report_bytes,
             file_options={"content-type": "application/jsonl", "upsert": "true"}
         )
-        logging.info(f"Reporte '{filename}' guardado en Storage en la ruta: {path}")
+        logging.info(f"Reporte '{filename}' guardado en Storage: {path}")
     except Exception as e:
         logging.warning(f"No se pudo guardar el reporte '{filename}' en Storage: {e}")
 
@@ -109,16 +176,24 @@ def main():
     if not profile:
         return
 
-    all_candidates = fetch_trending_candidates_for_scoring()
-    if not all_candidates:
+    candidates = fetch_trending_candidates_for_scoring()
+    if not candidates:
         logging.info("No hay candidatos para escanear. Finalizando job.")
         return
+        
+    logging.info("Pre-procesando candidatos para calcular y normalizar VPH/ENG...")
+    processed_candidates = preprocess_candidates(candidates)
 
     accepted, rejected = [], []
 
-    for video in all_candidates:
+    for video in processed_candidates:
+        # Utilizar 'video_id' en todo el flujo
+        video_id = video.get('video_id')
+        if not video_id:
+            continue
+
         score, sim_nv = calculate_score(video, profile)
-        is_short = video.get('duration_seconds', 61) <= 60
+        is_short = video.get('duration_seconds', 0) <= 60
         threshold = TH_SHORTS if is_short else TH_LONGS
         
         video['score_niche'] = score
@@ -131,7 +206,7 @@ def main():
             reason = f"Score insuficiente ({score:.3f} < {threshold:.3f}) (Formato: {'Short' if is_short else 'Long'})"
         
         if reason:
-            rejected.append({"video_id": video.get('id'), "title": video.get('title'), "score": score, "sim_nv": sim_nv, "reason": reason})
+            rejected.append({"video_id": video_id, "title": video.get('title'), "score": score, "sim_nv": sim_nv, "reason": reason})
         else:
             accepted.append(video)
     
@@ -142,28 +217,26 @@ def main():
     save_report_to_storage(REPORTS_BUCKET, rejected, "rejects_niche.jsonl")
 
     if not SHADOW_MODE and accepted:
-        logging.info(f"Modo Producción: Insertando hasta {len(accepted)} videos en la base de datos.")
-        target_table = 'video_trending_filtered'
         today_iso = datetime.now(timezone.utc).date().isoformat()
-        
-        # Lógica de insert-only: primero consultamos cuáles ya existen para no re-insertar
-        accepted_ids = [v['id'] for v in accepted]
+        target_table = 'video_trending_filtered'
+        accepted_ids = [v['video_id'] for v in accepted]
+
+        # Deduplicar antes de insertar
         existing_ids_resp = supabase.table(target_table).select('video_id').eq('run_date', today_iso).in_('video_id', accepted_ids).execute()
         existing_ids = {r['video_id'] for r in existing_ids_resp.data}
         
         records_to_insert = []
         for video in accepted:
-            if video['id'] in existing_ids:
+            if video['video_id'] in existing_ids:
                 continue
-
             records_to_insert.append({
                 "run_date": today_iso,
-                'video_id': video['id'],
+                'video_id': video['video_id'],
                 'region': video.get('region'),
                 'title': video.get('title'),
                 'channel_title': video.get('channel_title'),
-                'score': video.get('score_niche', 0.0),
-                'sim_to_profile': video.get('sim_nv', 0.0),
+                'score': video.get('score_niche'),
+                'sim_to_profile': video.get('sim_nv'),
                 'passed': True,
                 'reason': 'source: competencia_auto_nicho',
                 'source': 'competencia_auto_nicho'
@@ -171,12 +244,12 @@ def main():
         
         if records_to_insert:
             try:
-                logging.info(f"Realizando insert de {len(records_to_insert)} nuevos registros en '{target_table}'.")
+                logging.info(f"Modo Producción: Insertando {len(records_to_insert)} nuevos videos en '{target_table}'.")
                 supabase.table(target_table).insert(records_to_insert).execute()
             except Exception as e:
                 logging.error(f"Error durante la inserción en Supabase: {e}")
         else:
-            logging.info("No hay nuevos registros para insertar (ya existían en la tabla destino para hoy).")
+            logging.info("No hay nuevos registros para insertar (ya existían o todos fueron filtrados).")
 
     logging.info("Job scan_competencia_auto_nicho finalizado.")
 
