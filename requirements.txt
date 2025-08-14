@@ -20,3 +20,4 @@ ultralytics
 sentence-transformers
 torch
 scikit-learn
+isodate>=0.6.1
