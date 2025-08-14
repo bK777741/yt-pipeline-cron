@@ -713,7 +713,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: 'pip'
+          cache: pip
+          cache-dependency-path: requirements.txt
       - name: Cache models
         uses: actions/cache@v4
         with:
@@ -723,7 +724,17 @@ jobs:
             ~/.cache/sentence-transformers
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          # verificación explícita (opcional pero útil)
+          python - <<'PY'
+          import sys, importlib
+          print("Python:", sys.executable)
+          print("isodate OK?:", importlib.util.find_spec("isodate") is not None)
+          PY
+      - name: Forzar isodate (si hiciera falta)
+        run: python -m pip install --upgrade "isodate>=0.6.1"
       - name: Ejecutar script de escaneo
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
