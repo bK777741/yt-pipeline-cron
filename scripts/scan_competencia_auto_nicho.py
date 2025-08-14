@@ -59,8 +59,7 @@ def ensure_bucket_exists(bucket_name: str):
     """Crea un bucket en Supabase Storage si no existe."""
     try:
         supabase.storage.get_bucket(bucket_name)
-    except Exception as e:
-        # Asumimos que un error aquí significa que el bucket no existe.
+    except Exception:
         logging.warning(f"Bucket '{bucket_name}' no encontrado. Intentando crear...")
         try:
             supabase.storage.create_bucket(bucket_name)
@@ -71,11 +70,13 @@ def ensure_bucket_exists(bucket_name: str):
 
 # --- Funciones Principales ---
 def fetch_niche_profile():
-    """Descarga y carga el modelo de nicho (nv.json) desde Supabase Storage."""
+    """Descarga y carga el modelo de nicho (nv.json) de forma robusta desde Supabase Storage."""
     try:
         logging.info(f"Descargando perfil de nicho desde '{STORAGE_BUCKET}/{MODEL_FILE_PATH}'...")
-        response_bytes = supabase.storage.from_(STORAGE_BUCKET).download(MODEL_FILE_PATH)
-        profile = json.loads(response_bytes.read())
+        # Carga robusta que funciona si la respuesta es bytes o un stream
+        resp = supabase.storage.from_(STORAGE_BUCKET).download(MODEL_FILE_PATH)
+        raw = resp if isinstance(resp, (bytes, bytearray)) else resp.read()
+        profile = json.loads(raw)
         profile['nv'] = np.array(profile['nv'])
         logging.info(f"Perfil de nicho cargado (Modelo: {profile.get('model')}).")
         return profile
@@ -97,24 +98,25 @@ def fetch_trending_candidates_for_scoring():
 
 def preprocess_candidates(candidates):
     """
-    Calcula y normaliza VPH y ENG para el pool de candidatos, separando por formato.
+    Calcula y normaliza VPH y ENG para el pool de candidatos, usando los nombres de campo correctos.
     """
     now = datetime.now(timezone.utc)
     for v in candidates:
         # --- Alineación de campos y cálculo de señales crudas ---
         v['duration_seconds'] = parse_iso8601_duration(v.get('duration'))
         
-        # VPH
-        published_at_str = v.get('published_at')
+        # VPH - Usando view_count y cálculo robusto para videos nuevos
         view_count = v.get('view_count', 0)
+        published_at_str = v.get('published_at')
         if published_at_str:
             published_dt = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
-            hours_since_published = (now - published_dt).total_seconds() / 3600
-            v['vph'] = view_count / hours_since_published if hours_since_published > 1 else 0
+            # Mejora: Evita división por cero o números pequeños, asegura un mínimo de 1 hora
+            hours_since_published = max(1.0, (now - published_dt).total_seconds() / 3600.0)
+            v['vph'] = view_count / hours_since_published
         else:
             v['vph'] = 0.0
             
-        # ENG
+        # ENG - Usando like_count y view_count
         like_count = v.get('like_count', 0)
         comment_count = v.get('comment_count', 0)
         v['eng'] = ((like_count + comment_count) / view_count) * 100 if view_count > 0 else 0.0
@@ -173,10 +175,11 @@ def save_report_to_storage(bucket, report_data, filename):
     path = f"auto_nicho/{ts.strftime('%Y/%m/%d')}/{filename}"
     
     try:
+        # Mejora: Usar contentType (camelCase) para el header
         supabase.storage.from_(bucket).upload(
             path=path,
             file=report_bytes,
-            file_options={"content-type": "application/jsonl", "upsert": "true"}
+            file_options={"contentType": "application/jsonl", "upsert": "true"}
         )
         logging.info(f"Reporte '{filename}' guardado en Storage: {path}")
     except Exception as e:
