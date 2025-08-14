@@ -55,6 +55,20 @@ def percentile_scaler(data: np.ndarray) -> np.ndarray:
     scaled = (data - min_val) / (max_val - min_val)
     return np.clip(scaled, 0, 1)
 
+def ensure_bucket_exists(bucket_name: str):
+    """Crea un bucket en Supabase Storage si no existe."""
+    try:
+        supabase.storage.get_bucket(bucket_name)
+    except Exception as e:
+        # Asumimos que un error aquí significa que el bucket no existe.
+        logging.warning(f"Bucket '{bucket_name}' no encontrado. Intentando crear...")
+        try:
+            supabase.storage.create_bucket(bucket_name)
+            logging.info(f"Bucket '{bucket_name}' creado exitosamente.")
+        except Exception as create_error:
+            logging.error(f"No se pudo crear el bucket '{bucket_name}': {create_error}")
+
+
 # --- Funciones Principales ---
 def fetch_niche_profile():
     """Descarga y carga el modelo de nicho (nv.json) desde Supabase Storage."""
@@ -92,18 +106,18 @@ def preprocess_candidates(candidates):
         
         # VPH
         published_at_str = v.get('published_at')
+        view_count = v.get('view_count', 0)
         if published_at_str:
             published_dt = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
             hours_since_published = (now - published_dt).total_seconds() / 3600
-            v['vph'] = v.get('views', 0) / hours_since_published if hours_since_published > 1 else 0
+            v['vph'] = view_count / hours_since_published if hours_since_published > 1 else 0
         else:
             v['vph'] = 0.0
             
         # ENG
-        views = v.get('views', 0)
-        likes = v.get('likes', 0)
-        comments = v.get('comment_count', 0)
-        v['eng'] = ((likes + comments) / views) * 100 if views > 0 else 0.0
+        like_count = v.get('like_count', 0)
+        comment_count = v.get('comment_count', 0)
+        v['eng'] = ((like_count + comment_count) / view_count) * 100 if view_count > 0 else 0.0
 
     # --- Normalización por formato ---
     shorts = [v for v in candidates if v['duration_seconds'] <= 60]
@@ -187,7 +201,6 @@ def main():
     accepted, rejected = [], []
 
     for video in processed_candidates:
-        # Utilizar 'video_id' en todo el flujo
         video_id = video.get('video_id')
         if not video_id:
             continue
@@ -212,6 +225,9 @@ def main():
     
     logging.info(f"Evaluación completada. Aceptados: {len(accepted)}, Rechazados: {len(rejected)}")
 
+    # Asegurar que el bucket para reportes exista
+    ensure_bucket_exists(REPORTS_BUCKET)
+    
     # Guardar reportes en Storage
     save_report_to_storage(REPORTS_BUCKET, accepted, "top_niche.jsonl")
     save_report_to_storage(REPORTS_BUCKET, rejected, "rejects_niche.jsonl")
