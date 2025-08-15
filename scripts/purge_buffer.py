@@ -17,7 +17,19 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 
 from supabase import create_client
 from supabase.lib.client_options import ClientOptions
-from supabase._sync.storage.client import StorageException  # supabase-py v2
+
+# Import tolerante del StorageException (cambia entre versiones de supabase-py)
+try:
+    # supabase-py >= 2.4 aprox.
+    from supabase.storage.errors import StorageException            # type: ignore
+except Exception:
+    try:
+        # Algunos builds exponen la excepción aquí
+        from supabase.lib.storage.types import StorageException     # type: ignore
+    except Exception:
+        # Si no existe en tu versión, usa Exception genérica
+        class StorageException(Exception):
+            pass
 
 # Defaults; permite override por ENV si quieres
 RETENTION_DAYS_VIDEOS = int(os.getenv("RETENTION_DAYS_VIDEOS", "60"))
@@ -119,7 +131,7 @@ def upload_backup(sb, path: str, payload: bytes) -> None:
         print(f"[purge_buffer] Backup subido: {path}")
     try:
         _retry(_work, f"upload {path}")
-    except StorageException as e:
+    except (StorageException, Exception) as e:
         raise RuntimeError(f"Fallo subiendo backup '{path}': {e}") from e
 
 
