@@ -37,20 +37,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-          # Lista exacta de URLs oficiales que quieres monitorear (separadas por coma):
           POLICY_URLS: >-
-            https://support.google.com/youtube/answer/9288567,
-            https://support.google.com/youtube/answer/6162278,
-            https://support.google.com/youtube/answer/2797466,
-            https://support.google.com/youtube/answer/72851,
-            https://support.google.com/youtube/answer/1311392,
-            https://support.google.com/youtube/answer/2802032,
-            https://support.google.com/youtube/answer/9725604
+            ["https://support.google.com/youtube/answer/9288567?hl=es",
+             "https://support.google.com/youtube/answer/6162278?hl=es",
+             "https://support.google.com/youtube/answer/2797466?hl=es",
+             "https://support.google.com/youtube/answer/72851?hl=es",
+             "https://support.google.com/youtube/answer/1311392?hl=es",
+             "https://support.google.com/youtube/answer/2802032?hl=es",
+             "https://support.google.com/youtube/answer/9725604?hl=es"]
 
-          # Correo de contacto para el User-Agent (opcional pero recomendado)
           CONTACT_EMAIL: ${{ secrets.CONTACT_EMAIL }}
 
-          # Máximo de caracteres por página (opcional)
           POLICY_MAX_CHARS: "12000"
         run: |
           set -euo pipefail
