@@ -2,7 +2,8 @@ python-dotenv
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
-supabase
+supabase>=2.4.0,<3
+postgrest>=0.14.8
 pytz
 requests
 beautifulsoup4
