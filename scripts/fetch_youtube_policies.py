@@ -7,6 +7,7 @@ import datetime as dt
 from urllib.parse import urlparse
 import json
 import urllib.parse
+from urllib.parse import urlsplit, urlunsplit, quote # Añadido urlsplit y urlunsplit
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
@@ -93,10 +94,10 @@ def normalize_url(u: str) -> str | None:
 
     # Parse y rehace sin caracteres prohibidos en path/query/fragment
     parts = urlsplit(u)
-    path = urllib.parse.quote(parts.path, safe="/%:@")
-    query = urllib.parse.quote(parts.query or "hl=es", safe="=&:%,@/?")
-    frag  = urllib.parse.quote(parts.fragment, safe="=&:%,@/?")
-    return urllib.parse.urlunsplit(("https", parts.netloc, path, query, frag))
+    path = quote(parts.path, safe="/%:@")
+    query = quote(parts.query or "hl=es", safe="=&:%,@/?")
+    frag  = quote(parts.fragment, safe="=&:%,@/?")
+    return urlunsplit(("https", parts.netloc, path, query, frag))
 # ================================================================
 
 # --- Carga de URLs (ahora más robusta) ---
@@ -147,13 +148,13 @@ POLICY_URLS = checked
 # Si por alguna razón quedó vacío, reponemos los 7 canónicos
 if not POLICY_URLS:
     POLICY_URLS = [
-        "https://support.google.com/youtube/answer/9288567?hl=es",
-        "https://support.google.com/youtube/answer/6162278?hl=es",
-        "https://support.google.com/youtube/answer/2797466?hl=es",
-        "https://support.google.com/youtube/answer/72851?hl=es",
-        "https://support.google.com/youtube/answer/1311392?hl=es",
-        "https://support.google.com/youtube/answer/2802032?hl=es",
-        "https://support.google.com/youtube/answer/9725604?hl=es",
+        "https://support.google.com/youtube/answer/9288567?hl=en",
+        "https://support.google.com/youtube/answer/6162278?hl=en",
+        "https://support.google.com/youtube/answer/2797466?hl=en",
+        "https://support.google.com/youtube/answer/72851?hl=en",
+        "https://support.google.com/youtube/answer/1311392?hl=en",
+        "https://support.google.com/youtube/answer/2802032?hl=en",
+        "https://support.google.com/youtube/answer/9725604?hl=en",
     ]
 
 # A partir de aquí el script debe usar POLICY_URLS como siempre para el scrape + upsert.
