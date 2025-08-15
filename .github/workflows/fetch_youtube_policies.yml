@@ -36,15 +36,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-          # Usa una cadena de texto sin saltos de línea y separada por comas.
-          # El script de Python la procesará correctamente.
-          POLICY_URLS: "https://support.google.com/youtube/answer/9288567?hl=en, https://support.google.com/youtube/answer/6162278?hl=en, https://support.google.com/youtube/answer/2797466?hl=en, https://support.google.com/youtube/answer/72851?hl=en, https://support.google.com/youtube/answer/1311392?hl=en, https://support.google.com/youtube/answer/2802032?hl=en, https://support.google.com/youtube/answer/9725604?hl=en"
-          
-          # Correo de contacto para el User-Agent (opcional pero recomendado)
           CONTACT_EMAIL: ${{ secrets.CONTACT_EMAIL }}
-
-          # Máximo de caracteres por página (opcional)
           POLICY_MAX_CHARS: "12000"
         run: |
           set -euo pipefail
