@@ -13,7 +13,6 @@ from supabase import create_client, Client
 
 # Configuración
 MAX_CONTENT_LENGTH = int(os.getenv('POLICY_MAX_CHARS', '12000'))
-USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_EMAIL', '')})"
 
 # Mapa de categorías por ID
 ID_MAP = {
@@ -65,13 +64,10 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     return full_text[:MAX_CONTENT_LENGTH]
 
 # ============= Leer y normalizar POLICY_URLS (manteniendo SIEMPRE los 7) =============
-RAW = os.getenv("POLICY_URLS", "[]")
+RAW = os.getenv("POLICY_URLS", "")
 
-try:
-    seeds = json.loads(RAW)  # esperamos una lista JSON
-except json.JSONDecodeError:
-    # fallback por si alguien envió texto separado por comas
-    seeds = [u.strip() for u in RAW.split(",") if u.strip()]
+# Dividir por comas y eliminar espacios en blanco
+seeds = [u.strip() for u in RAW.split(",") if u.strip()]
 
 def normalize(u: str) -> str | None:
     """
@@ -131,13 +127,13 @@ POLICY_URLS = checked
 # Si por alguna razón quedó vacío, reponemos los 7 canónicos
 if not POLICY_URLS:
     POLICY_URLS = [
-        "https://support.google.com/youtube/answer/9288567?hl=es",
-        "https://support.google.com/youtube/answer/6162278?hl=es",
-        "https://support.google.com/youtube/answer/2797466?hl=es",
-        "https://support.google.com/youtube/answer/72851?hl=es",
-        "https://support.google.com/youtube/answer/1311392?hl=es",
-        "https://support.google.com/youtube/answer/2802032?hl=es",
-        "https://support.google.com/youtube/answer/9725604?hl=es",
+        "https://support.google.com/youtube/answer/9288567?hl=en",
+        "https://support.google.com/youtube/answer/6162278?hl=en",
+        "https://support.google.com/youtube/answer/2797466?hl=en",
+        "https://support.google.com/youtube/answer/72851?hl=en",
+        "https://support.google.com/youtube/answer/1311392?hl=en",
+        "https://support.google.com/youtube/answer/2802032?hl=en",
+        "https://support.google.com/youtube/answer/9725604?hl=en",
     ]
 def main():
     supabase: Client = create_client(
