@@ -14,7 +14,6 @@ from supabase import create_client, Client
 # Configuración
 MAX_CONTENT_LENGTH = int(os.getenv('POLICY_MAX_CHARS', '12000'))
 USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_EMAIL', '')})"
-POLICY_URLS = os.getenv('POLICY_URLS', '').split(',')
 
 # Mapa de categorías por ID
 ID_MAP = {
@@ -64,7 +63,6 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     
     full_text = '\n'.join(content_parts)
     return full_text[:MAX_CONTENT_LENGTH]
-
 
 # ============= Leer y normalizar POLICY_URLS (manteniendo SIEMPRE los 7) =============
 RAW = os.getenv("POLICY_URLS", "[]")
@@ -141,8 +139,6 @@ if not POLICY_URLS:
         "https://support.google.com/youtube/answer/2802032?hl=es",
         "https://support.google.com/youtube/answer/9725604?hl=es",
     ]
-
-
 def main():
     supabase: Client = create_client(
         os.environ['SUPABASE_URL'],
