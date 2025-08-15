@@ -30,7 +30,6 @@ on:
     - cron: "0 11 * * *"     # fetch_monetization_metrics
     - cron: "30 11 * * *"    # fetch_trending_videos
     - cron: "45 11 * * *"    # fetch_search_trends
-    - cron: "0 14 1,16 * *"  # fetch_youtube_policies
     - cron: "55 4 * * *"     # purge_buffer
 
     # Schedules para el NUEVO MÓDULO AUTO-NICHO
@@ -520,51 +519,6 @@ jobs:
   # =====================================================================================
   # JOBS DE MANTENIMIENTO INDEPENDIENTES Y PROGRAMADOS
   # =====================================================================================
-  fetch_youtube_policies:
-    name: "MANTENIMIENTO: Obtener Políticas de YouTube"
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar fetch_youtube_policies.py con reintentos
-        uses: nick-invision/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 15
-          command: |
-            set -euo pipefail
-            export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-            export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_youtube_policies.py
-        env:
-          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CONTACT_EMAIL: "jvillarreal0991@gmail.com"
-          POLICY_URLS: ${{ secrets.POLICY_URLS }}
-          POLICY_MAX_CHARS: "12000"
-      - name: Notificar fallo por email
-        if: ${{ failure() && env.ALERT_EMAIL != '' }}
-        env:
-          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          secure: true
-          subject: 'YT→Supabase: Workflow FAILED 😱'
-          from: jvillarreal0991@gmail.com
-          to: ${{ env.ALERT_EMAIL }}
-          body: |
-            Ha fallado el job ${{ github.job }} en el run ${{ github.run_id }}.
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
   purge_buffer:
     name: "MANTENIMIENTO: Purgar Buffer"
     runs-on: ubuntu-latest
@@ -721,4 +675,3 @@ jobs:
           TARGET_SHORTS: ${{ vars.TARGET_SHORTS || 15 }}
           TARGET_LONGS: ${{ vars.TARGET_LONGS || 10 }}
         run: python scripts/scan_competencia_auto_nicho.py
-
