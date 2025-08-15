@@ -82,7 +82,8 @@ def ensure_bucket(sb) -> None:
     def _work():
         buckets = sb.storage.list_buckets()
         if not any(b.name == BUCKET_NAME for b in buckets):
-            sb.storage.create_bucket(BUCKET_NAME, public=False)
+            # CORREGIDO: Se crea el bucket sin el argumento 'public' para evitar TypeError
+            sb.storage.create_bucket(BUCKET_NAME)
             print(f"[purge_buffer] Bucket '{BUCKET_NAME}' creado.")
         else:
             print(f"[purge_buffer] Bucket '{BUCKET_NAME}' OK.")
