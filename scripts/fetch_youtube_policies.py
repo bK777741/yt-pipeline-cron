@@ -7,7 +7,7 @@ import datetime as dt
 from urllib.parse import urlparse
 import json
 import urllib.parse
-from urllib.parse import urlsplit, urlunsplit, quote # Añadido urlsplit y urlunsplit
+from urllib.parse import urlsplit, urlunsplit, quote
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
@@ -30,7 +30,7 @@ ID_MAP = {
 
 def get_content_hash(content: str) -> str:
     """Genera hash SHA-256 del contenido"""
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+    return hashlib.sha256(content.encode('utf-8')).heigdige()
 
 def extract_category(url: str) -> str:
     """Extrae categoría de política de la URL usando ID_MAP"""
@@ -67,43 +67,46 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     return full_text[:MAX_CONTENT_LENGTH]
 
 
-# ======= Limpieza fuerte de URLs (control/BOM/zero-width) =======
-# Todos los ASCII de control + DEL
-_CONTROL_ASCII = ''.join(chr(c) for c in list(range(0, 32)) + [127])
-# Espacios raros / zero-width / BOM
+# ========== Limpieza fuerte de URLs ==========
+# mapa que elimina todos los ASCII de control y DEL
+_CTRL_MAP = {**{c: None for c in range(0, 32)}, 127: None}
+# espacios raros / zero-width / BOM
 _ZERO_WIDTH = '\u00a0\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u200c\u200d\u200e\u200f\u2028\u2029\u2060\ufeff'
-_SANITIZER = re.compile(f"[{re.escape(_CONTROL_ASCII + _ZERO_WIDTH)}]")
+_ZW_RE = re.compile(f"[{re.escape(_ZERO_WIDTH)}]")
 
-def sanitize_raw(u: str) -> str:
-    """Elimina por completo saltos de línea, BOM y zero-width; además hace strip()."""
-    if u is None:
+def _strip_controls(s: str) -> str:
+    # elimina \n \r \t … y DEL
+    return s.translate(_CTRL_MAP)
+
+def sanitize_raw(u: str | None) -> str:
+    if not u:
         return ""
-    return _SANITIZER.sub("", u).strip()
+    # quita BOM/zero-width y todo control ASCII; luego trim
+    return _ZW_RE.sub("", _strip_controls(u)).strip()
 
-def normalize_url(u: str) -> str | None:
-    """Normaliza la URL ya saneada; siempre devuelve https + query hl=es."""
+def normalize_url(u: str | None) -> str | None:
+    """Limpia y normaliza; fuerza https y asegura query hl=es"""
     u = sanitize_raw(u)
     if not u:
         return None
-
-    # Asegura https
     if u.startswith("http://"):
         u = "https://" + u[7:]
     elif not u.startswith("https://"):
         u = "https://" + u
 
-    # Parse y rehace sin caracteres prohibidos en path/query/fragment
-    parts = urlsplit(u)
-    path = quote(parts.path, safe="/%:@")
-    query = quote(parts.query or "hl=es", safe="=&:%,@/?")
-    frag  = quote(parts.fragment, safe="=&:%,@/?")
-    return urlunsplit(("https", parts.netloc, path, query, frag))
-# ================================================================
+    p = urlsplit(u)
+    path = quote(p.path, safe="/%:@")
+    q = p.query or "hl=es"
+    query = quote(q, safe="=&:%,@/?")
+    frag = quote(p.fragment, safe="=&:%,@/?")
+    return urlunsplit(("https", p.netloc, path, query, frag))
+# ============================================
+
 
 # --- Carga de URLs (ahora más robusta) ---
 seeds: list[str] = []
 
-# 1) JSON (fuente canónica). Lee con 'utf-8-sig' para comer BOM si lo hubiera.
+# a) JSON (canónica). Lee con utf-8-sig para tragar BOM si lo hubiera
 json_file = Path(__file__).parent / "policy_urls.json"
 if json_file.exists():
     with open(json_file, "r", encoding="utf-8-sig") as fh:
@@ -111,22 +114,33 @@ if json_file.exists():
         if isinstance(data, list):
             seeds.extend(str(x) for x in data)
 
-# 2) (Opcional) VARIABLE DE ENTORNO, por si acaso alguien la deja puesta.
+# b) (opcional) variable de entorno
 raw_env = os.getenv("POLICY_URLS", "")
 if raw_env:
-    # Acepta coma, salto de línea o cualquier whitespace como separador
     parts = [p for p in re.split(r"[, \t\r\n]+", raw_env) if p]
     seeds.extend(parts)
 
-# 3) Saneado fuerte + normalizado + deduplicado preservando orden
+# c) limpieza + normalización + deduplicación preservando orden
 seen = set()
 POLICY_URLS: list[str] = []
 for u in seeds:
-    u_norm = normalize_url(u)  # <--- usa SIEMPRE normalize_url (que ya limpia '\n')
-    if not u_norm or u_norm in seen:
+    nu = normalize_url(u)
+    if not nu or nu in seen:
         continue
-    seen.add(u_norm)
-    POLICY_URLS.append(u_norm)
+    seen.add(nu)
+    POLICY_URLS.append(nu)
+
+# **Comprobación defensiva** (deja activo hasta que lo veas sano en logs)
+def _assert_clean(urls: list[str]) -> None:
+    for u in urls:
+        bad = [f"{ord(ch)}" for ch in u if ord(ch) < 32 or ord(ch) == 127]
+        if bad:
+            # imprime repr para ver si hay \n “real” pegado
+            print(f"[ASSERT] sucia: {repr(u)}   ascii_ctrl={bad}")
+            raise ValueError("URL contiene ASCII de control")
+
+_assert_clean(POLICY_URLS)
+
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -148,13 +162,13 @@ POLICY_URLS = checked
 # Si por alguna razón quedó vacío, reponemos los 7 canónicos
 if not POLICY_URLS:
     POLICY_URLS = [
-        "https://support.google.com/youtube/answer/9288567?hl=en",
-        "https://support.google.com/youtube/answer/6162278?hl=en",
-        "https://support.google.com/youtube/answer/2797466?hl=en",
-        "https://support.google.com/youtube/answer/72851?hl=en",
-        "https://support.google.com/youtube/answer/1311392?hl=en",
-        "https://support.google.com/youtube/answer/2802032?hl=en",
-        "https://support.google.com/youtube/answer/9725604?hl=en",
+        "https://support.google.com/youtube/answer/9288567?hl=es",
+        "https://support.google.com/youtube/answer/6162278?hl=es",
+        "https://support.google.com/youtube/answer/2797466?hl=es",
+        "https://support.google.com/youtube/answer/72851?hl=es",
+        "https://support.google.com/youtube/answer/1311392?hl=es",
+        "https://support.google.com/youtube/answer/2802032?hl=es",
+        "https://support.google.com/youtube/answer/9725604?hl=es",
     ]
 
 # A partir de aquí el script debe usar POLICY_URLS como siempre para el scrape + upsert.
