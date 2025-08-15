@@ -14,6 +14,9 @@ from requests import RequestException
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
+# Imprimir la ruta del script para depuración
+print("[INFO] running:", os.path.abspath(__file__))
+
 # Configuración
 MAX_CONTENT_LENGTH = int(os.getenv('POLICY_MAX_CHARS', '12000'))
 USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_EMAIL', '')})"
@@ -21,7 +24,7 @@ USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_
 # Mapa de categorías por ID
 ID_MAP = {
     "9288567": "community",
-    "72851":   "monetization",
+    "72851": "monetization",
     "1311392": "monetization",
     "6162278": "ad_suitability",
     "2797466": "copyright",
@@ -75,6 +78,10 @@ _CTRL_MAP = {**{c: None for c in range(0, 32)}, 127: None}
 _ZERO_WIDTH = '\u00a0\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u200c\u200d\u200e\u200f\u2028\u2029\u2060\ufeff'
 _ZW_RE = re.compile(f"[{re.escape(_ZERO_WIDTH)}]")
 
+def _strip_controls(s: str) -> str:
+    # elimina \n \r \t … y DEL
+    return s.translate(_CTRL_MAP)
+
 def sanitize_raw(u: str | None) -> str:
     """Limpieza AGRESIVA: quita controles, zero-width y TODO whitespace (incluye \n)."""
     if not u:
@@ -111,6 +118,13 @@ def _assert_clean_one(u: str):
     bad = [f"{i}:{ord(ch)}" for i, ch in enumerate(u) if ord(ch) < 32 or ord(ch) == 127]
     if bad:
         print(f"[DBG] control chars -> {bad}  URL={repr(u)}")
+
+def scrub_controls(s: str) -> str:
+    # elimina \r \n y cualquier control ASCII; además, aplana a una sola línea
+    s = s.replace("\r", "").replace("\n", "")
+    s = "".join(ch for ch in s if 32 <= ord(ch) <= 126 or ch in "/:?&=%._-#")
+    return s
+
 # ============================================
 
 seeds: list[str] = []
@@ -155,19 +169,21 @@ def main():
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_SERVICE_KEY']
     )
-
+    
     for raw in POLICY_URLS:
-        # 1ª limpieza/normalización
-        url = normalize_url(raw)
+        url = normalize_url(raw) or ""
+        # cinturón y tirantes ANTES de llamar a requests
+        url = scrub_controls(url)
+        # corta de raíz si quedara algo raro
+        url = url.splitlines()[0].strip()
 
-        # 2ª limpieza justo antes de pedir (cinturón y tirantes)
-        url = sanitize_raw(url)
-        _assert_clean_one(url)
-        
+        # DEBUG: ver exactamente lo que está entrando a requests
+        print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
+
         try:
             resp = session.get(url, timeout=30)
             resp.raise_for_status()
-            
+
             soup = BeautifulSoup(resp.text, 'html.parser')
             category = extract_category(url)
             content = extract_relevant_text(soup, category)
@@ -203,25 +219,6 @@ def main():
             # Pausa antibaneo aleatoria
             time.sleep(random.uniform(3, 5))
 
-        except RequestException as e:
-            # Reintento tras limpieza extrema por si algo se coló
-            url_retry = sanitize_raw(raw)
-            _assert_clean_one(url_retry)
-            try:
-                resp = session.get(url_retry, timeout=30)
-                resp.raise_for_status()
-                # Si el reintento funciona, continuar con el upsert
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                category = extract_category(url)
-                content = extract_relevant_text(soup, category)
-                content_hash = get_content_hash(content)
-                now = dt.datetime.now(dt.timezone.utc).isoformat()
-                
-                # ... (resto de la lógica de upsert) ...
-                print(f"✅ Reintento exitoso para {url}")
-            except Exception as e2:
-                print(f"❌ Error procesando {url}: {e2}")
-                continue
         except Exception as e:
             print(f"❌ Error procesando {url}: {e}")
             
