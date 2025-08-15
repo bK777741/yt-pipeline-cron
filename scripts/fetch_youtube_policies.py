@@ -7,8 +7,8 @@ import datetime as dt
 from urllib.parse import urlparse
 import json
 import urllib.parse
-import requests
 from pathlib import Path
+import requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
@@ -19,7 +19,7 @@ USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_
 # Mapa de categorías por ID
 ID_MAP = {
     "9288567": "community",
-    "72851": "monetization",
+    "72851":   "monetization",
     "1311392": "monetization",
     "6162278": "ad_suitability",
     "2797466": "copyright",
@@ -41,10 +41,10 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     # Eliminar elementos no deseados
     for element in soup(['script', 'style', 'footer', 'nav']):
         element.decompose()
-
+    
     current_year = dt.datetime.now().year
     content_parts = []
-
+    
     for tag in soup.find_all(['h1', 'h2', 'h3', 'p']):
         if tag.name.startswith('h'):
             text = tag.get_text().strip()
@@ -61,7 +61,7 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
                         if current_year - latest_year > 2:
                             continue
                 content_parts.append(text)
-
+    
     full_text = '\n'.join(content_parts)
     return full_text[:MAX_CONTENT_LENGTH]
 
@@ -82,16 +82,24 @@ if not seeds:
         seeds = [t for t in re.split(r"[\s,]+", RAW.strip()) if t]
 
 # ---------- Sanitizador de caracteres invisibles ----------
-# quita \n, \r, \t, NBSP, LRM/RLM, separadores de línea/párrafo, etc.
 CONTROL_WS = r"\s\u00A0\u200B-\u200F\u2028\u2029"
 CTRL_RE = re.compile(f"[{CONTROL_WS}]+", flags=re.UNICODE)
 
 def strip_controls(u: str) -> str:
     return CTRL_RE.sub("", u)
 
+# Limpieza aún más estricta para cualquier residual (\n, \r, \t, BOM, ZWSP, etc.)
+def hard_clean(u: str) -> str:
+    bad = {
+        "\n", "\r", "\t", "\x0b", "\x0c",         # whitespace de control
+        "\ufeff",                                 # BOM
+        "\u200b", "\u200c", "\u200d", "\u2060"    # zero-width
+    }
+    return "".join(ch for ch in u if ch not in bad)
+
 # ---------- Normalizador de URL + garante hl=en ----------
 def normalize(u: str) -> str | None:
-    u = strip_controls(u.strip())
+    u = hard_clean(strip_controls(u.strip()))
     if not u:
         return None
 
