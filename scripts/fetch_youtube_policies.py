@@ -5,7 +5,8 @@ import time
 import random
 import datetime as dt
 from urllib.parse import urlparse
-
+import json
+import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
@@ -64,6 +65,84 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     full_text = '\n'.join(content_parts)
     return full_text[:MAX_CONTENT_LENGTH]
 
+
+# ============= Leer y normalizar POLICY_URLS (manteniendo SIEMPRE los 7) =============
+RAW = os.getenv("POLICY_URLS", "[]")
+
+try:
+    seeds = json.loads(RAW)  # esperamos una lista JSON
+except json.JSONDecodeError:
+    # fallback por si alguien envió texto separado por comas
+    seeds = [u.strip() for u in RAW.split(",") if u.strip()]
+
+def normalize(u: str) -> str | None:
+    """
+    Normaliza:
+      - obliga a https://support.google.com/youtube/...
+      - añade hl=en si falta
+      - conserva /youtube/answer/<id>
+    """
+    u = u.strip()
+    if not u:
+        return None
+
+    p = urllib.parse.urlsplit(u)
+
+    # esquema y dominio
+    if p.scheme not in {"http", "https"}:
+        return None
+    if p.netloc != "support.google.com":
+        return None
+
+    # sólo rutas /youtube/
+    if not p.path.startswith("/youtube/"):
+        return None
+
+    # añade hl=en si no está
+    q = urllib.parse.parse_qsl(p.query, keep_blank_values=True)
+    if not any(k == "hl" for k, _ in q):
+        q.append(("hl", "en"))
+    new_query = urllib.parse.urlencode(q)
+
+    return urllib.parse.urlunsplit((p.scheme, p.netloc, p.path, new_query, p.fragment))
+
+# normalizamos, quitamos None y duplicados, manteniendo orden
+POLICY_URLS = list(
+    dict.fromkeys(
+        filter(None, (normalize(u) for u in seeds))
+    )
+)
+
+# User-Agent estable para evitar bloqueos de HEAD/GET
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+# **NO** descartamos URLs aunque devuelvan 404/403: sólo avisamos y continuamos.
+checked = []
+for u in POLICY_URLS:
+    try:
+        r = requests.get(u, timeout=30, allow_redirects=True, headers={"User-Agent": UA})
+        if r.status_code >= 400:
+            print(f"[warn] HTTP {r.status_code} al preconsultar {u} — la mantengo igualmente.")
+    except Exception as e:
+        print(f"[warn] No pude preconsultar {u} ({e}) — la mantengo igualmente.")
+    checked.append(u)
+
+POLICY_URLS = checked
+
+# Si por alguna razón quedó vacío, reponemos los 7 canónicos
+if not POLICY_URLS:
+    POLICY_URLS = [
+        "https://support.google.com/youtube/answer/9288567?hl=es",
+        "https://support.google.com/youtube/answer/6162278?hl=es",
+        "https://support.google.com/youtube/answer/2797466?hl=es",
+        "https://support.google.com/youtube/answer/72851?hl=es",
+        "https://support.google.com/youtube/answer/1311392?hl=es",
+        "https://support.google.com/youtube/answer/2802032?hl=es",
+        "https://support.google.com/youtube/answer/9725604?hl=es",
+    ]
+
+
 def main():
     supabase: Client = create_client(
         os.environ['SUPABASE_URL'],
@@ -76,7 +155,7 @@ def main():
             
         try:
             # Descargar página con User-Agent válido
-            headers = {'User-Agent': USER_AGENT}
+            headers = {'User-Agent': UA}
             response = requests.get(url.strip(), headers=headers, timeout=30)
             response.raise_for_status()
             
