@@ -3,8 +3,8 @@ name: YouTube → Supabase pipeline
 
 # ========= CONFIGURACIÓN GLOBAL DEL WORKFLOW =========
 concurrency:
-  group: cron-${{ github.ref }}
-  cancel-in-progress: true
+  group: youtube-supabase-schedule
+  cancel-in-progress: false
 
 env:
   THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
@@ -46,7 +46,6 @@ jobs:
   import_daily:
     name: "PASO 1: Importar Videos Diarios (Crítico)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 7 * * *' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,7 +103,7 @@ jobs:
     name: "PASO 2a: Importar Subtítulos (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '15 7 * * *') }}
+    if: ${{ needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -148,7 +147,7 @@ jobs:
     name: "PASO 2b: Importar Comentarios (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '30 7 * * *') }}
+    if: ${{ needs.import_daily.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -217,7 +216,7 @@ jobs:
     name: "PASO 3b: Reconciliar Comentarios"
     runs-on: ubuntu-latest
     needs: import_recent_comments
-    if: ${{ needs.import_recent_comments.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '45 7 * * *') }}
+    if: ${{ needs.import_recent_comments.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -239,7 +238,7 @@ jobs:
     name: "PASO 4: Analizar Sentimiento de Comentarios"
     runs-on: ubuntu-latest
     needs: reconcile_comments
-    if: ${{ needs.reconcile_comments.result == 'success' && (github.event_name != 'schedule' || github.event.schedule == '0 8 * * *') }}
+    if: ${{ needs.reconcile_comments.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -256,7 +255,6 @@ jobs:
   maint_metrics:
     name: "PASO 5a: Mantener Métricas (Paralelo)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 9 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -299,7 +297,6 @@ jobs:
   fetch_video_analytics:
     name: "PASO 5b: Obtener Analíticas (Paralelo)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 10 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -342,7 +339,6 @@ jobs:
   compute_posting_schedule:
     name: "PASO 5c: Calcular Horario de Publicación (Paralelo)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 10 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -382,7 +378,6 @@ jobs:
   fetch_monetization_metrics:
     name: "PASO 5d: Obtener Métricas de Monetización (Paralelo)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 11 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -425,7 +420,6 @@ jobs:
   fetch_trending_videos:
     name: "PASO 5e: Obtener Videos en Tendencia (No Crítico)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '30 11 * * *' }}
     continue-on-error: true
     env:
       REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
@@ -481,7 +475,6 @@ jobs:
   fetch_search_trends:
     name: "PASO 5f: Obtener Tendencias de Búsqueda (Paralelo)"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '45 11 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -530,7 +523,7 @@ jobs:
   fetch_youtube_policies:
     name: "MANTENIMIENTO: Obtener Políticas de YouTube"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' }}
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 1,16 * *' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -575,20 +568,16 @@ jobs:
   purge_buffer:
     name: "MANTENIMIENTO: Purgar Buffer"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '55 4 * * *' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Run purge_buffer.py
-        uses: nick-invision/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 10
-          command: python -u ./scripts/purge_buffer.py
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Purge buffer
+        run: python -u ./scripts/purge_buffer.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -663,7 +652,6 @@ jobs:
   build_niche_profile:
     name: "Auto-Nicho: Construir Perfil del Canal"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' || github.event.schedule == '0 5 * * *' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -696,12 +684,7 @@ jobs:
     name: "Auto-Nicho: Escanear Competencia"
     runs-on: ubuntu-latest
     needs: build_niche_profile
-    if: >
-      needs.build_niche_profile.result == 'success' &&
-      (github.event_name != 'schedule' ||
-      github.event.schedule == '0 6 * * *' ||
-      github.event.schedule == '0 13 * * *' ||
-      github.event.schedule == '0 21 * * *')
+    if: ${{ needs.build_niche_profile.result == 'success' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -738,3 +721,4 @@ jobs:
           TARGET_SHORTS: ${{ vars.TARGET_SHORTS || 15 }}
           TARGET_LONGS: ${{ vars.TARGET_LONGS || 10 }}
         run: python scripts/scan_competencia_auto_nicho.py
+
