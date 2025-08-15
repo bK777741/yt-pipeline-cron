@@ -13,8 +13,8 @@ import requests
 from requests import RequestException
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
+from datetime import datetime, timezone
 
-# Imprimir la ruta del script para depuración
 print("[INFO] running:", os.path.abspath(__file__))
 
 # Configuración
@@ -24,7 +24,7 @@ USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_
 # Mapa de categorías por ID
 ID_MAP = {
     "9288567": "community",
-    "72851": "monetization",
+    "72851":   "monetization",
     "1311392": "monetization",
     "6162278": "ad_suitability",
     "2797466": "copyright",
@@ -130,7 +130,7 @@ def scrub_controls(s: str) -> str:
 seeds: list[str] = []
 
 # a) JSON canónico (lee con utf-8-sig por si hay BOM)
-json_file = Path(__file__).parent.parent / "policy_urls.json"
+json_file = Path(__file__).parent / "policy_urls.json"
 if json_file.exists():
     with open(json_file, "r", encoding="utf-8-sig") as fh:
         data = json.load(fh)
@@ -169,58 +169,50 @@ def main():
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_SERVICE_KEY']
     )
+
+    rows = []
     
     for raw in POLICY_URLS:
         url = normalize_url(raw) or ""
-        # cinturón y tirantes ANTES de llamar a requests
         url = scrub_controls(url)
-        # corta de raíz si quedara algo raro
         url = url.splitlines()[0].strip()
-
-        # DEBUG: ver exactamente lo que está entrando a requests
         print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
-
+        
         try:
             resp = session.get(url, timeout=30)
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
             category = extract_category(url)
-            content = extract_relevant_text(soup, category)
-            content_hash = get_content_hash(content)
-            now = dt.datetime.now(dt.timezone.utc).isoformat()
-            
-            # Verificar si ya existe este hash para esta URL
-            existing = supabase.table('youtube_policies') \
-                .select('id') \
-                .eq('policy_url', url) \
-                .eq('content_hash', content_hash) \
-                .execute()
-            
-            if not existing.data:
-                # Insertar nuevo registro con cambios
-                supabase.table('youtube_policies').insert({
-                    'policy_url': url,
-                    'category': category,
-                    'content_text': content,
-                    'content_hash': content_hash,
-                    'fetched_at': now,
-                    'last_checked_at': now
-                }).execute()
-                print(f"✅ Actualizada política: {url}")
-            else:
-                # Actualizar fecha de verificación
-                supabase.table('youtube_policies') \
-                    .update({'last_checked_at': now}) \
-                    .eq('id', existing.data[0]['id']) \
-                    .execute()
-                print(f"☑️ Política sin cambios: {url}")
-            
-            # Pausa antibaneo aleatoria
-            time.sleep(random.uniform(3, 5))
+            html_text = extract_relevant_text(soup, category)
 
-        except Exception as e:
+            content_text = (html_text or "")[:int(os.getenv("POLICY_MAX_CHARS", "12000"))]
+            content_hash = get_content_hash(content_text)
+
+            rows.append({
+                "policy_url": url,
+                "category": category,
+                "content_text": content_text,
+                "content_hash": content_hash,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "last_checked_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        except RequestException as e:
             print(f"❌ Error procesando {url}: {e}")
             
+    print(f"[policies] Voy a upsertear {len(rows)} filas")
+    
+    if rows:
+        try:
+            # Importante: on_conflict con la clave única por URL
+            res = supabase.table("youtube_policies").upsert(
+                rows,
+                on_conflict="policy_url"
+            ).execute()
+            print(f"[policies] upsert result: {res.data if hasattr(res, 'data') else 'ok'}")
+        except Exception as e:
+            print(f"❌ Error al realizar el upsert: {e}")
+
 if __name__ == "__main__":
     main()
