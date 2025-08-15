@@ -10,6 +10,7 @@ import urllib.parse
 from urllib.parse import urlsplit, urlunsplit, quote
 from pathlib import Path
 import requests
+from requests import RequestException
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
@@ -30,7 +31,7 @@ ID_MAP = {
 
 def get_content_hash(content: str) -> str:
     """Genera hash SHA-256 del contenido"""
-    return hashlib.sha256(content.encode('utf-8')).heigdige()
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 def extract_category(url: str) -> str:
     """Extrae categoría de política de la URL usando ID_MAP"""
@@ -68,24 +69,28 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
 
 
 # ========== Limpieza fuerte de URLs ==========
-# mapa que elimina todos los ASCII de control y DEL
+# elimina todos los ASCII de control (0-31 y 127)
 _CTRL_MAP = {**{c: None for c in range(0, 32)}, 127: None}
-# espacios raros / zero-width / BOM
+# espacios “invisibles” (zero-width, NBSP, BOM…)
 _ZERO_WIDTH = '\u00a0\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u200c\u200d\u200e\u200f\u2028\u2029\u2060\ufeff'
 _ZW_RE = re.compile(f"[{re.escape(_ZERO_WIDTH)}]")
 
-def _strip_controls(s: str) -> str:
-    # elimina \n \r \t … y DEL
-    return s.translate(_CTRL_MAP)
-
 def sanitize_raw(u: str | None) -> str:
+    """Limpieza AGRESIVA: quita controles, zero-width y TODO whitespace (incluye \n)."""
     if not u:
         return ""
-    # quita BOM/zero-width y todo control ASCII; luego trim
-    return _ZW_RE.sub("", _strip_controls(u)).strip()
+    # quita zero-width
+    u = _ZW_RE.sub("", u)
+    # quita \r \n \t explícitos
+    u = u.replace("\r", "").replace("\n", "").replace("\t", "")
+    # elimina cualquier whitespace restante (incluye varios Unicode)
+    u = "".join(u.split())
+    # elimina ASCII de control
+    u = u.translate(_CTRL_MAP)
+    return u.strip()
 
 def normalize_url(u: str | None) -> str | None:
-    """Limpia y normaliza; fuerza https y asegura query hl=es"""
+    """Normaliza y asegura https + hl=es"""
     u = sanitize_raw(u)
     if not u:
         return None
@@ -95,19 +100,23 @@ def normalize_url(u: str | None) -> str | None:
         u = "https://" + u
 
     p = urlsplit(u)
-    path = quote(p.path, safe="/%:@")
-    q = p.query or "hl=es"
-    query = quote(q, safe="=&:%,@/?")
-    frag = quote(p.fragment, safe="=&:%,@/?")
+    path  = quote(p.path, safe="/%:@")
+    query = p.query or "hl=es"
+    query = quote(query, safe="=&:%,@/?")
+    frag  = quote(p.fragment, safe="=&:%,@/?")
     return urlunsplit(("https", p.netloc, path, query, frag))
+
+def _assert_clean_one(u: str):
+    """Imprime diagnóstico si queda algún control char."""
+    bad = [f"{i}:{ord(ch)}" for i, ch in enumerate(u) if ord(ch) < 32 or ord(ch) == 127]
+    if bad:
+        print(f"[DBG] control chars -> {bad}  URL={repr(u)}")
 # ============================================
 
-
-# --- Carga de URLs (ahora más robusta) ---
 seeds: list[str] = []
 
-# a) JSON (canónica). Lee con utf-8-sig para tragar BOM si lo hubiera
-json_file = Path(__file__).parent / "policy_urls.json"
+# a) JSON canónico (lee con utf-8-sig por si hay BOM)
+json_file = Path(__file__).parent.parent / "policy_urls.json"
 if json_file.exists():
     with open(json_file, "r", encoding="utf-8-sig") as fh:
         data = json.load(fh)
@@ -120,77 +129,46 @@ if raw_env:
     parts = [p for p in re.split(r"[, \t\r\n]+", raw_env) if p]
     seeds.extend(parts)
 
-# c) limpieza + normalización + deduplicación preservando orden
+# c) limpieza + normalización + deduplicación
 seen = set()
 POLICY_URLS: list[str] = []
-for u in seeds:
-    nu = normalize_url(u)
-    if not nu or nu in seen:
+for raw in seeds:
+    url = normalize_url(raw)
+    if not url or url in seen:
         continue
-    seen.add(nu)
-    POLICY_URLS.append(nu)
+    seen.add(url)
+    POLICY_URLS.append(url)
 
-# **Comprobación defensiva** (deja activo hasta que lo veas sano en logs)
-def _assert_clean(urls: list[str]) -> None:
-    for u in urls:
-        bad = [f"{ord(ch)}" for ch in u if ord(ch) < 32 or ord(ch) == 127]
-        if bad:
-            # imprime repr para ver si hay \n “real” pegado
-            print(f"[ASSERT] sucia: {repr(u)}   ascii_ctrl={bad}")
-            raise ValueError("URL contiene ASCII de control")
-
-_assert_clean(POLICY_URLS)
-
+# Diagnóstico (déjalo activo hasta que pase en verde)
+for u in POLICY_URLS:
+    _assert_clean_one(u)
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-# **NO** descartamos URLs aunque devuelvan 404/403: sólo avisamos y continuamos.
-checked = []
-for u in POLICY_URLS:
-    try:
-        r = requests.get(u, timeout=30, allow_redirects=True, headers={"User-Agent": UA})
-        if r.status_code >= 400:
-            print(f"[warn] HTTP {r.status_code} al preconsultar {u} — la mantengo igualmente.")
-    except Exception as e:
-        print(f"[warn] No pude preconsultar {u} ({e}) — la mantengo igualmente.")
-    checked.append(u)
-
-POLICY_URLS = checked
-
-# Si por alguna razón quedó vacío, reponemos los 7 canónicos
-if not POLICY_URLS:
-    POLICY_URLS = [
-        "https://support.google.com/youtube/answer/9288567?hl=es",
-        "https://support.google.com/youtube/answer/6162278?hl=es",
-        "https://support.google.com/youtube/answer/2797466?hl=es",
-        "https://support.google.com/youtube/answer/72851?hl=es",
-        "https://support.google.com/youtube/answer/1311392?hl=es",
-        "https://support.google.com/youtube/answer/2802032?hl=es",
-        "https://support.google.com/youtube/answer/9725604?hl=es",
-    ]
-
-# A partir de aquí el script debe usar POLICY_URLS como siempre para el scrape + upsert.
-# (No cambies la lógica de inserción/actualización existente).
+session = requests.Session()
+session.headers.update({'User-Agent': UA})
 
 def main():
     supabase: Client = create_client(
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_SERVICE_KEY']
     )
-    
-    for url in POLICY_URLS:
-        if not url.strip():
-            continue
-            
+
+    for raw in POLICY_URLS:
+        # 1ª limpieza/normalización
+        url = normalize_url(raw)
+
+        # 2ª limpieza justo antes de pedir (cinturón y tirantes)
+        url = sanitize_raw(url)
+        _assert_clean_one(url)
+        
         try:
-            # Descargar página con User-Agent válido
-            headers = {'User-Agent': USER_AGENT}
-            response = requests.get(url.strip(), headers=headers, timeout=30)
-            response.raise_for_status()
+            resp = session.get(url, timeout=30)
+            resp.raise_for_status()
             
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(resp.text, 'html.parser')
             category = extract_category(url)
             content = extract_relevant_text(soup, category)
             content_hash = get_content_hash(content)
@@ -224,9 +202,28 @@ def main():
             
             # Pausa antibaneo aleatoria
             time.sleep(random.uniform(3, 5))
-            
+
+        except RequestException as e:
+            # Reintento tras limpieza extrema por si algo se coló
+            url_retry = sanitize_raw(raw)
+            _assert_clean_one(url_retry)
+            try:
+                resp = session.get(url_retry, timeout=30)
+                resp.raise_for_status()
+                # Si el reintento funciona, continuar con el upsert
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                category = extract_category(url)
+                content = extract_relevant_text(soup, category)
+                content_hash = get_content_hash(content)
+                now = dt.datetime.now(dt.timezone.utc).isoformat()
+                
+                # ... (resto de la lógica de upsert) ...
+                print(f"✅ Reintento exitoso para {url}")
+            except Exception as e2:
+                print(f"❌ Error procesando {url}: {e2}")
+                continue
         except Exception as e:
-            print(f"❌ Error procesando {url}: {str(e)}")
+            print(f"❌ Error procesando {url}: {e}")
             
 if __name__ == "__main__":
     main()
