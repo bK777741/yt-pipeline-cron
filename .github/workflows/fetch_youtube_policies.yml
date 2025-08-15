@@ -37,10 +37,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-          # Lista exacta de URLs oficiales que quieres monitorear (en formato JSON):
-          POLICY_URLS: >-
-            ["https://support.google.com/youtube/answer/9288567?hl=es", "https://support.google.com/youtube/answer/6162278?hl=es", "https://support.google.com/youtube/answer/2797466?hl=es", "https://support.google.com/youtube/answer/72851?hl=es", "https://support.google.com/youtube/answer/1311392?hl=es", "https://support.google.com/youtube/answer/2802032?hl=es", "https://support.google.com/youtube/answer/9725604?hl=es"]
-
+          # Usa una cadena de texto sin saltos de línea y separada por comas.
+          # El script de Python la procesará correctamente.
+          POLICY_URLS: "https://support.google.com/youtube/answer/9288567?hl=en, https://support.google.com/youtube/answer/6162278?hl=en, https://support.google.com/youtube/answer/2797466?hl=en, https://support.google.com/youtube/answer/72851?hl=en, https://support.google.com/youtube/answer/1311392?hl=en, https://support.google.com/youtube/answer/2802032?hl=en, https://support.google.com/youtube/answer/9725604?hl=en"
+          
           # Correo de contacto para el User-Agent (opcional pero recomendado)
           CONTACT_EMAIL: ${{ secrets.CONTACT_EMAIL }}
 
