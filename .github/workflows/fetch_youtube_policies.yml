@@ -1,0 +1,55 @@
+name: Fetch YouTube policies
+
+on:
+  workflow_dispatch: {}
+  # Corre 2 veces al mes: días 1 y 16 a las 08:00 UTC
+  # (08:00 UTC = 03:00 Lima aprox; ajusta la hora si quieres)
+  schedule:
+    - cron: "0 8 1,16 * *"
+
+concurrency:
+  group: fetch_youtube_policies
+  cancel-in-progress: true
+
+jobs:
+  fetch_policies:
+    name: Fetch YouTube policies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run fetch_youtube_policies.py
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ./scripts/fetch_youtube_policies.py
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASS }}
+          secure: true
+          subject: "YT→Supabase: Policies workflow failed"
+          from: jvillarreal0991@gmail.com
+          to: ${{ secrets.ALERT_EMAIL }}
+          body: |
+            Falló el job ${{ github.job }} en el run ${{ github.run_id }}.
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
