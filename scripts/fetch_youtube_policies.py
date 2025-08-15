@@ -65,69 +65,74 @@ def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
     full_text = '\n'.join(content_parts)
     return full_text[:MAX_CONTENT_LENGTH]
 
-# ---------- Cargar SEEDS desde JSON (fuente principal) ----------
-SEEDS_PATH = Path(__file__).with_name("policy_urls.json")
-seeds: list[str] = []
-if SEEDS_PATH.exists():
-    with open(SEEDS_PATH, "r", encoding="utf-8") as f:
-        seeds = json.load(f)
 
-# ---------- Fallback opcional: también aceptar env si no hay JSON ----------
-if not seeds:
-    RAW = os.getenv("POLICY_URLS", "")
-    try:
-        seeds = json.loads(RAW)  # si viene una lista JSON válida
-    except Exception:
-        # texto plano: separa por espacios, comas o saltos
-        seeds = [t for t in re.split(r"[\s,]+", RAW.strip()) if t]
+# ======= Limpieza fuerte de URLs (control/BOM/zero-width) =======
+# Todos los ASCII de control + DEL
+_CONTROL_ASCII = ''.join(chr(c) for c in list(range(0, 32)) + [127])
+# Espacios raros / zero-width / BOM
+_ZERO_WIDTH = '\u00a0\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u200b\u200c\u200d\u200e\u200f\u2028\u2029\u2060\ufeff'
+_SANITIZER = re.compile(f"[{re.escape(_CONTROL_ASCII + _ZERO_WIDTH)}]")
 
-# ---------- Sanitizador de caracteres invisibles ----------
-CONTROL_WS = r"\s\u00A0\u200B-\u200F\u2028\u2029"
-CTRL_RE = re.compile(f"[{CONTROL_WS}]+", flags=re.UNICODE)
+def sanitize_raw(u: str) -> str:
+    """Elimina por completo saltos de línea, BOM y zero-width; además hace strip()."""
+    if u is None:
+        return ""
+    return _SANITIZER.sub("", u).strip()
 
-def strip_controls(u: str) -> str:
-    return CTRL_RE.sub("", u)
-
-# Limpieza aún más estricta para cualquier residual (\n, \r, \t, BOM, ZWSP, etc.)
-def hard_clean(u: str) -> str:
-    bad = {
-        "\n", "\r", "\t", "\x0b", "\x0c",         # whitespace de control
-        "\ufeff",                                 # BOM
-        "\u200b", "\u200c", "\u200d", "\u2060"    # zero-width
-    }
-    return "".join(ch for ch in u if ch not in bad)
-
-# ---------- Normalizador de URL + garante hl=en ----------
-def normalize(u: str) -> str | None:
-    u = hard_clean(strip_controls(u.strip()))
+def normalize_url(u: str) -> str | None:
+    """Normaliza la URL ya saneada; siempre devuelve https + query hl=es."""
+    u = sanitize_raw(u)
     if not u:
         return None
 
-    p = urllib.parse.urlsplit(u)
-    if p.scheme not in {"http", "https"}:
-        return None
-    if p.netloc != "support.google.com":
-        return None
-    if not p.path.startswith("/youtube/"):
-        return None
+    # Asegura https
+    if u.startswith("http://"):
+        u = "https://" + u[7:]
+    elif not u.startswith("https://"):
+        u = "https://" + u
 
-    qs = urllib.parse.parse_qsl(p.query, keep_blank_values=True)
-    if not any(k == "hl" for k, _ in qs):
-        qs.append(("hl", "en"))  # fuerza un idioma estable
-    new_q = urllib.parse.urlencode(qs)
+    # Parse y rehace sin caracteres prohibidos en path/query/fragment
+    parts = urlsplit(u)
+    path = urllib.parse.quote(parts.path, safe="/%:@")
+    query = urllib.parse.quote(parts.query or "hl=es", safe="=&:%,@/?")
+    frag  = urllib.parse.quote(parts.fragment, safe="=&:%,@/?")
+    return urllib.parse.urlunsplit(("https", parts.netloc, path, query, frag))
+# ================================================================
 
-    return urllib.parse.urlunsplit((p.scheme, p.netloc, p.path, new_q, p.fragment))
+# --- Carga de URLs (ahora más robusta) ---
+seeds: list[str] = []
 
-# Lista final de URLs limpias, sin duplicados (preserva orden)
-POLICY_URLS: list[str] = list(
-    dict.fromkeys(filter(None, (normalize(u) for u in seeds)))
-)
+# 1) JSON (fuente canónica). Lee con 'utf-8-sig' para comer BOM si lo hubiera.
+json_file = Path(__file__).parent / "policy_urls.json"
+if json_file.exists():
+    with open(json_file, "r", encoding="utf-8-sig") as fh:
+        data = json.load(fh)
+        if isinstance(data, list):
+            seeds.extend(str(x) for x in data)
 
-# ---------- Preconsulta suave (no descarta si falla) ----------
+# 2) (Opcional) VARIABLE DE ENTORNO, por si acaso alguien la deja puesta.
+raw_env = os.getenv("POLICY_URLS", "")
+if raw_env:
+    # Acepta coma, salto de línea o cualquier whitespace como separador
+    parts = [p for p in re.split(r"[, \t\r\n]+", raw_env) if p]
+    seeds.extend(parts)
+
+# 3) Saneado fuerte + normalizado + deduplicado preservando orden
+seen = set()
+POLICY_URLS: list[str] = []
+for u in seeds:
+    u_norm = normalize_url(u)  # <--- usa SIEMPRE normalize_url (que ya limpia '\n')
+    if not u_norm or u_norm in seen:
+        continue
+    seen.add(u_norm)
+    POLICY_URLS.append(u_norm)
+
+# User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-_checked = []
+# **NO** descartamos URLs aunque devuelvan 404/403: sólo avisamos y continuamos.
+checked = []
 for u in POLICY_URLS:
     try:
         r = requests.get(u, timeout=30, allow_redirects=True, headers={"User-Agent": UA})
@@ -135,8 +140,9 @@ for u in POLICY_URLS:
             print(f"[warn] HTTP {r.status_code} al preconsultar {u} — la mantengo igualmente.")
     except Exception as e:
         print(f"[warn] No pude preconsultar {u} ({e}) — la mantengo igualmente.")
-    _checked.append(u)
-POLICY_URLS = _checked
+    checked.append(u)
+
+POLICY_URLS = checked
 
 # Si por alguna razón quedó vacío, reponemos los 7 canónicos
 if not POLICY_URLS:
@@ -158,30 +164,30 @@ def main():
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_SERVICE_KEY']
     )
-
+    
     for url in POLICY_URLS:
         if not url.strip():
             continue
-
+            
         try:
             # Descargar página con User-Agent válido
-            headers = {'User-Agent': UA}
+            headers = {'User-Agent': USER_AGENT}
             response = requests.get(url.strip(), headers=headers, timeout=30)
             response.raise_for_status()
-
+            
             soup = BeautifulSoup(response.text, 'html.parser')
             category = extract_category(url)
             content = extract_relevant_text(soup, category)
             content_hash = get_content_hash(content)
             now = dt.datetime.now(dt.timezone.utc).isoformat()
-
+            
             # Verificar si ya existe este hash para esta URL
             existing = supabase.table('youtube_policies') \
                 .select('id') \
                 .eq('policy_url', url) \
                 .eq('content_hash', content_hash) \
                 .execute()
-
+            
             if not existing.data:
                 # Insertar nuevo registro con cambios
                 supabase.table('youtube_policies').insert({
@@ -200,12 +206,12 @@ def main():
                     .eq('id', existing.data[0]['id']) \
                     .execute()
                 print(f"☑️ Política sin cambios: {url}")
-
+            
             # Pausa antibaneo aleatoria
             time.sleep(random.uniform(3, 5))
-
+            
         except Exception as e:
             print(f"❌ Error procesando {url}: {str(e)}")
-
+            
 if __name__ == "__main__":
     main()
