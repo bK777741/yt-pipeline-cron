@@ -15,61 +15,86 @@ from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime, timezone
 
-print("[INFO] running:", os.path.abspath(__file__))
+# --- pega esto en fetch_youtube_policies.py ---
+import hashlib
+import datetime as dt
 
-# Configuración
-MAX_CONTENT_LENGTH = int(os.getenv('POLICY_MAX_CHARS', '12000'))
-USER_AGENT = f"Mozilla/5.0 (compatible; PolicyMonitor/1.0; +{os.getenv('CONTACT_EMAIL', '')})"
+TABLE = "youtube_policies"
 
-# Mapa de categorías por ID
-ID_MAP = {
-    "9288567": "community",
-    "72851":   "monetization",
-    "1311392": "monetization",
-    "6162278": "ad_suitability",
-    "2797466": "copyright",
-    "2802032": "enforcement",
-    "9725604": "updates"
-}
+def now_utc_iso():
+    return dt.datetime.now(dt.timezone.utc).isoformat()
 
-def get_content_hash(content: str) -> str:
-    """Genera hash SHA-256 del contenido"""
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+def hash_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
-def extract_category(url: str) -> str:
-    """Extrae categoría de política de la URL usando ID_MAP"""
-    m = re.search(r'/answer/(\d+)', url)
-    return ID_MAP.get(m.group(1), "community") if m else "community"
+def save_policy(supabase, url: str, category: str, content_text: str):
+    """
+    Upsert en public.youtube_policies con las columnas correctas.
+    Si el hash del contenido no cambia, sólo actualiza last_checked_at.
+    """
+    content_text = (content_text or "").strip()
+    h = hash_text(content_text)
+    now = now_utc_iso()
 
-def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
-    """Extrae texto relevante de la página con filtro para actualizaciones"""
-    # Eliminar elementos no deseados
-    for element in soup(['script', 'style', 'footer', 'nav']):
-        element.decompose()
-    
-    current_year = dt.datetime.now().year
-    content_parts = []
-    
-    for tag in soup.find_all(['h1', 'h2', 'h3', 'p']):
-        if tag.name.startswith('h'):
-            text = tag.get_text().strip()
-            if text:
-                content_parts.append(f"\n{text}\n")
+    # ¿Existe ya esa policy_url?
+    existing = supabase.table(TABLE).select("id, content_hash").eq("policy_url", url).limit(1).execute()
+
+    if existing.data:
+        row = existing.data[0]
+        if row["content_hash"] == h:
+            # Sin cambios: sólo marcamos último chequeo
+            res = supabase.table(TABLE) \
+                .update({"last_checked_at": now}) \
+                .eq("id", row["id"]) \
+                .execute()
+            if getattr(res, "error", None):
+                print(f"❌ update last_checked_at ERROR {url}: {res.error}")
+            else:
+                print(f"☑️ Sin cambios → last_checked_at: {url}")
+            return
+
+        # Con cambios: actualizamos texto + hash + timestamps
+        payload = {
+            "category": category,
+            "content_text": content_text,
+            "content_hash": h,
+            "fetched_at": now,
+            "last_checked_at": now,
+        }
+        res = supabase.table(TABLE).update(payload).eq("id", row["id"]).execute()
+        if getattr(res, "error", None):
+            print(f"❌ update ERROR {url}: {res.error}")
         else:
-            text = tag.get_text().strip()
-            if text and len(text) > 30:
-                # Filtrar actualizaciones antiguas
-                if category == 'updates':
-                    year_matches = re.findall(r'\b(20\d{2})\b', text)
-                    if year_matches:
-                        latest_year = max(int(year) for year in year_matches)
-                        if current_year - latest_year > 2:
-                            continue
-                content_parts.append(text)
-    
-    full_text = '\n'.join(content_parts)
-    return full_text[:MAX_CONTENT_LENGTH]
+            print(f"🔁 Actualizada: {url}")
+        return
 
+    # No existe: insert
+    payload = {
+        "policy_url": url,
+        "category": category,
+        "content_text": content_text,
+        "content_hash": h,
+        "fetched_at": now,
+        "last_checked_at": now,
+    }
+    res = supabase.table(TABLE).upsert(payload, on_conflict="policy_url").execute()
+    if getattr(res, "error", None):
+        print(f"❌ upsert ERROR {url}: {res.error}")
+    else:
+        print(f"➕ Insertada: {url}")
+
+def load_policy_urls():
+    # Si hay JSON, úsalo
+    json_path = Path("scripts/policy_urls.json")
+    if json_path.exists():
+        with open(json_path, "r", encoding="utf-8") as f:
+            arr = json.load(f)
+        return [u.strip() for u in arr if isinstance(u, str) and u.strip()]
+
+    # Si viene por env (con comas o líneas), también vale
+    raw = os.getenv("POLICY_URLS", "")
+    parts = re.split(r"[\s,]+", raw)
+    return [p.strip() for p in parts if p.strip()]
 
 # ========== Limpieza fuerte de URLs ==========
 # elimina todos los ASCII de control (0-31 y 127)
@@ -127,36 +152,6 @@ def scrub_controls(s: str) -> str:
 
 # ============================================
 
-seeds: list[str] = []
-
-# a) JSON canónico (lee con utf-8-sig por si hay BOM)
-json_file = Path(__file__).parent.parent / "policy_urls.json"
-if json_file.exists():
-    with open(json_file, "r", encoding="utf-8-sig") as fh:
-        data = json.load(fh)
-        if isinstance(data, list):
-            seeds.extend(str(x) for x in data)
-
-# b) (opcional) variable de entorno
-raw_env = os.getenv("POLICY_URLS", "")
-if raw_env:
-    parts = [p for p in re.split(r"[, \t\r\n]+", raw_env) if p]
-    seeds.extend(parts)
-
-# c) limpieza + normalización + deduplicación
-seen = set()
-urls: list[str] = []
-for raw in seeds:
-    url = normalize_url(raw)
-    if not url or url in seen:
-        continue
-    seen.add(url)
-    urls.append(url)
-
-# Diagnóstico (déjalo activo hasta que pase en verde)
-for u in urls:
-    _assert_clean_one(u)
-
 # User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -170,6 +165,7 @@ def main():
         os.environ['SUPABASE_SERVICE_KEY']
     )
 
+    urls = load_policy_urls()
     print("URLS LOADED:", len(urls))
     for i, u in enumerate(urls, 1):
         print(f"[{i}] {repr(u)}")
@@ -177,8 +173,6 @@ def main():
     pre = supabase.table("youtube_policies").select("id", count="exact").execute()
     print("COUNT BEFORE:", pre.count)
 
-    rows = []
-    
     for raw in urls:
         url = normalize_url(raw) or ""
         url = scrub_controls(url)
@@ -191,36 +185,16 @@ def main():
 
             soup = BeautifulSoup(resp.text, 'html.parser')
             category = extract_category(url)
-            html_text = extract_relevant_text(soup, category)
+            content_text = extract_relevant_text(soup, category)
 
-            content_text = (html_text or "")[:int(os.getenv("POLICY_MAX_CHARS", "12000"))]
-            content_hash = get_content_hash(content_text)
-
-            rows.append({
-                "policy_url": url,
-                "category": category,
-                "content_text": content_text,
-                "content_hash": content_hash,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "last_checked_at": datetime.now(timezone.utc).isoformat(),
-            })
+            save_policy(supabase, url=url, category=category, content_text=content_text)
+            
+            # Pausa antibaneo aleatoria
+            time.sleep(random.uniform(3, 5))
 
         except RequestException as e:
             print(f"❌ Error procesando {url}: {e}")
             
-    print(f"[policies] Voy a upsertear {len(rows)} filas")
-    
-    if rows:
-        try:
-            # Importante: on_conflict con la clave única por URL
-            res = supabase.table("youtube_policies").upsert(
-                rows,
-                on_conflict="policy_url"
-            ).execute()
-            print(f"[policies] upsert result: {res.data if hasattr(res, 'data') else 'ok'}")
-        except Exception as e:
-            print(f"❌ Error al realizar el upsert: {e}")
-
     post = supabase.table("youtube_policies").select("id", count="exact").execute()
     print("COUNT AFTER:", post.count)
 
