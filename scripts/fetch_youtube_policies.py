@@ -130,7 +130,7 @@ def scrub_controls(s: str) -> str:
 seeds: list[str] = []
 
 # a) JSON canónico (lee con utf-8-sig por si hay BOM)
-json_file = Path(__file__).parent / "policy_urls.json"
+json_file = Path(__file__).parent.parent / "policy_urls.json"
 if json_file.exists():
     with open(json_file, "r", encoding="utf-8-sig") as fh:
         data = json.load(fh)
@@ -145,16 +145,16 @@ if raw_env:
 
 # c) limpieza + normalización + deduplicación
 seen = set()
-POLICY_URLS: list[str] = []
+urls: list[str] = []
 for raw in seeds:
     url = normalize_url(raw)
     if not url or url in seen:
         continue
     seen.add(url)
-    POLICY_URLS.append(url)
+    urls.append(url)
 
 # Diagnóstico (déjalo activo hasta que pase en verde)
-for u in POLICY_URLS:
+for u in urls:
     _assert_clean_one(u)
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
@@ -170,9 +170,16 @@ def main():
         os.environ['SUPABASE_SERVICE_KEY']
     )
 
+    print("URLS LOADED:", len(urls))
+    for i, u in enumerate(urls, 1):
+        print(f"[{i}] {repr(u)}")
+
+    pre = supabase.table("youtube_policies").select("id", count="exact").execute()
+    print("COUNT BEFORE:", pre.count)
+
     rows = []
     
-    for raw in POLICY_URLS:
+    for raw in urls:
         url = normalize_url(raw) or ""
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
@@ -213,6 +220,9 @@ def main():
             print(f"[policies] upsert result: {res.data if hasattr(res, 'data') else 'ok'}")
         except Exception as e:
             print(f"❌ Error al realizar el upsert: {e}")
+
+    post = supabase.table("youtube_policies").select("id", count="exact").execute()
+    print("COUNT AFTER:", post.count)
 
 if __name__ == "__main__":
     main()
