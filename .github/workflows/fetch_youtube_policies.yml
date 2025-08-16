@@ -38,8 +38,18 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           set -euo pipefail
-          echo "[SMOKE] URL: ${SUPABASE_URL}"
-          echo "[SMOKE] Host: $(echo "${SUPABASE_URL}" | sed -E 's#https?://([^/]+)/?.*#\1#')"
+          # Normalizar SUPABASE_URL: quitar CR/LF y barras finales; añadir https:// si falta
+          RAW="${SUPABASE_URL}"
+          BASE="$(printf '%s' "$RAW" | tr -d '\r\n' | sed -E 's#/*$##')"
+          case "$BASE" in
+            http://*|https://*) : ;;
+            *) BASE="https://${BASE}";;
+          esac
+
+          HOST="$(printf '%s' "$BASE" | sed -E 's#https?://([^/]+)/?.*#\1#')"
+          echo "[SMOKE] Host: ${HOST}"
+          echo "[SMOKE] Using base: ${BASE}"  # GitHub lo enmascara, es normal ver ***
+
           json='[{"policy_url":"https://example.com/__probe__",
                   "category":"probe",
                   "content_text":"probe row",
@@ -49,26 +59,26 @@ jobs:
 
           echo "[SMOKE] Inserting probe row…"
           curl -sS -o /tmp/ins.json -w "\nHTTP %{http_code}\n" \
-            "${SUPABASE_URL%/}/rest/v1/youtube_policies" \
+            "${BASE}/rest/v1/youtube_policies" \
             -H "apikey: ${SUPABASE_SERVICE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
             -H "Content-Type: application/json" \
             -H "Prefer: return=representation" \
             -d "${json}"
 
-          echo "[SMOKE] Current count after insert:"
-          curl -sS "${SUPABASE_URL%/}/rest/v1/youtube_policies?select=count" \
+          echo "[SMOKE] Count after insert:"
+          curl -sS "${BASE}/rest/v1/youtube_policies?select=count" \
             -H "apikey: ${SUPABASE_SERVICE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
-
           echo
+
           echo "[SMOKE] Deleting probe row…"
           curl -sS -o /tmp/del.json -w "\nHTTP %{http_code}\n" \
-            "${SUPABASE_URL%/}/rest/v1/youtube_policies?policy_url=eq.https://example.com/__probe__" \
+            "${BASE}/rest/v1/youtube_policies?policy_url=eq.https://example.com/__probe__" \
             -X DELETE \
             -H "apikey: ${SUPABASE_SERVICE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
-      
+            
       - name: Run fetch_youtube_policies.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
