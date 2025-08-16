@@ -173,37 +173,65 @@ def scrub_controls(s: str) -> str:
     s = "".join(ch for ch in s if 32 <= ord(ch) <= 126 or ch in "/:?&=%._-#")
     return s
 
-def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
-    """Extrae texto relevante de la página con filtro para actualizaciones"""
-    # Eliminar elementos no deseados
-    for element in soup(['script', 'style', 'footer', 'nav']):
-        element.decompose()
-    
-    current_year = dt.datetime.now().year
-    content_parts = []
-    
-    for tag in soup.find_all(['h1', 'h2', 'h3', 'p']):
-        if tag.name.startswith('h'):
-            text = tag.get_text().strip()
-            if text:
-                content_parts.append(f"\n{text}\n")
-        else:
-            text = tag.get_text().strip()
-            if text and len(text) > 30:
-                # Filtrar actualizaciones antiguas
-                if category == 'updates':
-                    year_matches = re.findall(r'\b(20\d{2})\b', text)
-                    if year_matches:
-                        latest_year = max(int(year) for year in year_matches)
-                        if current_year - latest_year > 2:
-                            continue
-                content_parts.append(text)
-    
-    full_text = '\n'.join(content_parts)
-    return full_text[:MAX_CONTENT_LENGTH]
+def _int_from_env(name: str, default: int) -> int:
+    try:
+        v = int(os.getenv(name, str(default)).strip())
+        return max(0, v)
+    except Exception:
+        return default
+
+# Tamaño máximo de texto a guardar (se alinea con tu env del workflow)
+POLICY_MAX_CHARS: int = _int_from_env("POLICY_MAX_CHARS", 12000)
+# Alias por compatibilidad con código viejo que use MAX_CONTENT_LENGTH
+MAX_CONTENT_LENGTH: int = POLICY_MAX_CHARS
+
+def extract_relevant_text(soup, category: str, max_len: int | None = None) -> str:
+    """
+    Devuelve el texto relevante recortado a max_len. No asume que exista ningún
+    global fuera: toma POLICY_MAX_CHARS por defecto si max_len es None.
+    """
+    if max_len is None:
+        max_len = POLICY_MAX_CHARS
+
+    # --- tu lógica de extracción actual (ejemplos) ---
+    # 1) intenta seleccionar el cuerpo principal
+    nodes = []
+    main = soup.select_one("main") or soup.select_one("article")
+    if main:
+        nodes.append(main.get_text(" ", strip=True))
+
+    # 2) fallback: todo el documento sin scripts/estilos
+    if not nodes:
+        for s in soup(["script", "style", "noscript"]):
+            s.extract()
+        nodes.append(soup.get_text(" ", strip=True))
+
+    full_text = " ".join(x for x in nodes if x).strip()
+    return full_text[:max_len] if full_text else ""
 
 
-# ============================================
+# ========== PARCHE CATEGORÍA (idempotente) ==========
+# Si extract_category no existe en este módulo, la definimos aquí mismo.
+try:
+    extract_category  # type: ignore
+except NameError:
+    import re as _re
+    _ID_TO_CATEGORY = {
+        "9288567": "community_guidelines",
+        "6162278": "copyright",
+        "2797466": "monetization",
+        "72851":   "policies_overview",
+        "1311392": "privacy_and_safety",
+        "2802032": "metadata_policies",
+        "9725604": "advertiser_friendly",
+    }
+    def extract_category(url: str) -> str:
+        if not url:
+            return "youtube_policy"
+        m = _re.search(r"/answer/(\d+)", url)
+        return _ID_TO_CATEGORY.get(m.group(1) if m else None, "youtube_policy")
+    print("[DEBUG] extract_category activado en este archivo")
+# =====================================================
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -213,21 +241,10 @@ session = requests.Session()
 session.headers.update({'User-Agent': UA})
 
 def main():
-    def _category_from_url(u: str) -> str:
-        import re
-        m = re.search(r"/answer/(\d+)", u or "")
-        return {
-            "9288567": "community_guidelines",
-            "6162278": "copyright",
-            "2797466": "monetization",
-            "72851": "policies_overview",
-            "1311392": "privacy_and_safety",
-            "2802032": "metadata_policies",
-            "9725604": "advertiser_friendly",
-        }.get(m.group(1) if m else None, "youtube_policy")
-
     urls = load_policy_urls()
     print(f"[MAIN] {len(urls)} URLs a procesar")
+    print(f"[CFG] POLICY_MAX_CHARS={POLICY_MAX_CHARS}")
+
 
     pre = supabase.table("youtube_policies").select("id", count="exact").execute()
     print("COUNT BEFORE:", pre.count)
@@ -237,14 +254,32 @@ def main():
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
         
-        category = _category_from_url(url)
-        print(f"[CAT] {url} -> {category}")
+        try:
+            category = extract_category(url)
+        except Exception:
+            import re as _re
+            _m = _re.search(r"/answer/(\d+)", url)
+            _id = _m.group(1) if _m else None
+            category = {
+                "9288567":"community_guidelines",
+                "6162278":"copyright",
+                "2797466":"monetization",
+                "72851":"policies_overview",
+                "1311392":"privacy_and_safety",
+                "2802032":"metadata_policies",
+                "9725604":"advertiser_friendly",
+            }.get(_id, "youtube_policy")
+            print("[WARN] extract_category faltó en runtime; usando fallback para", url)
 
+        print(f"[URL] {url} -> category={category}")
+        print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
+        
         try:
             resp = session.get(url, timeout=30)
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
+            # La categoría ya está definida arriba.
             content_text = extract_relevant_text(soup, category)
 
             save_policy(supabase, url=url, category=category, content_text=content_text)
