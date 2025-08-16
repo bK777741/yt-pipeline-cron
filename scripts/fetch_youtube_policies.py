@@ -95,6 +95,30 @@ def load_policy_urls():
     raw = os.getenv("POLICY_URLS", "")
     return [s.strip() for s in re.split(r"[\s,]+", raw) if s.strip()]
 
+def _clean_base_url(raw: str) -> str:
+    # Quita CR/LF y espacios, remueve barras finales, añade https:// si falta
+    base = (raw or "").strip().rstrip("/")
+    if base and not base.startswith(("http://", "https://")):
+        base = "https://" + base
+    return base
+
+SUPABASE_URL = _clean_base_url(os.environ.get("SUPABASE_URL", ""))
+SUPABASE_SERVICE_KEY = (os.environ.get("SUPABASE_SERVICE_KEY", "")).strip()
+
+if not SUPABASE_URL:
+    raise RuntimeError("SUPABASE_URL vacío después de limpiar; revisa el secreto.")
+if not SUPABASE_SERVICE_KEY:
+    raise RuntimeError("SUPABASE_SERVICE_KEY vacío; revisa el secreto.")
+
+# (Opcional) imprime el host para depurar (GitHub oculta la URL completa)
+try:
+    host = SUPABASE_URL.split("://", 1)[1].split("/", 1)[0]
+    print(f"[DEBUG] Supabase host: {host}")
+except Exception:
+    pass
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
 # ========== Limpieza fuerte de URLs ==========
 # elimina todos los ASCII de control (0-31 y 127)
 _CTRL_MAP = {**{c: None for c in range(0, 32)}, 127: None}
@@ -159,11 +183,6 @@ session = requests.Session()
 session.headers.update({'User-Agent': UA})
 
 def main():
-    supabase: Client = create_client(
-        os.environ['SUPABASE_URL'],
-        os.environ['SUPABASE_SERVICE_KEY']
-    )
-
     urls = load_policy_urls()
     print(f"[MAIN] {len(urls)} URLs a procesar")
 
