@@ -173,28 +173,37 @@ def scrub_controls(s: str) -> str:
     s = "".join(ch for ch in s if 32 <= ord(ch) <= 126 or ch in "/:?&=%._-#")
     return s
 
-# ========== PARCHE CATEGORÍA (idempotente) ==========
-# Si extract_category no existe en este módulo, la definimos aquí mismo.
-try:
-    extract_category  # type: ignore
-except NameError:
-    import re as _re
-    _ID_TO_CATEGORY = {
-        "9288567": "community_guidelines",
-        "6162278": "copyright",
-        "2797466": "monetization",
-        "72851":   "policies_overview",
-        "1311392": "privacy_and_safety",
-        "2802032": "metadata_policies",
-        "9725604": "advertiser_friendly",
-    }
-    def extract_category(url: str) -> str:
-        if not url:
-            return "youtube_policy"
-        m = _re.search(r"/answer/(\d+)", url)
-        return _ID_TO_CATEGORY.get(m.group(1) if m else None, "youtube_policy")
-    print("[DEBUG] extract_category activado en este archivo")
-# =====================================================
+def extract_relevant_text(soup: BeautifulSoup, category: str) -> str:
+    """Extrae texto relevante de la página con filtro para actualizaciones"""
+    # Eliminar elementos no deseados
+    for element in soup(['script', 'style', 'footer', 'nav']):
+        element.decompose()
+    
+    current_year = dt.datetime.now().year
+    content_parts = []
+    
+    for tag in soup.find_all(['h1', 'h2', 'h3', 'p']):
+        if tag.name.startswith('h'):
+            text = tag.get_text().strip()
+            if text:
+                content_parts.append(f"\n{text}\n")
+        else:
+            text = tag.get_text().strip()
+            if text and len(text) > 30:
+                # Filtrar actualizaciones antiguas
+                if category == 'updates':
+                    year_matches = re.findall(r'\b(20\d{2})\b', text)
+                    if year_matches:
+                        latest_year = max(int(year) for year in year_matches)
+                        if current_year - latest_year > 2:
+                            continue
+                content_parts.append(text)
+    
+    full_text = '\n'.join(content_parts)
+    return full_text[:MAX_CONTENT_LENGTH]
+
+
+# ============================================
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -204,6 +213,19 @@ session = requests.Session()
 session.headers.update({'User-Agent': UA})
 
 def main():
+    def _category_from_url(u: str) -> str:
+        import re
+        m = re.search(r"/answer/(\d+)", u or "")
+        return {
+            "9288567": "community_guidelines",
+            "6162278": "copyright",
+            "2797466": "monetization",
+            "72851": "policies_overview",
+            "1311392": "privacy_and_safety",
+            "2802032": "metadata_policies",
+            "9725604": "advertiser_friendly",
+        }.get(m.group(1) if m else None, "youtube_policy")
+
     urls = load_policy_urls()
     print(f"[MAIN] {len(urls)} URLs a procesar")
 
@@ -215,35 +237,14 @@ def main():
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
         
-        # Antes:
-        # category = extract_category(url)
-        # Después (fallback en caliente por si *algo* raro pasa):
-        try:
-            category = extract_category(url)
-        except Exception:
-            import re as _re
-            _m = _re.search(r"/answer/(\d+)", url)
-            _id = _m.group(1) if _m else None
-            category = {
-                "9288567":"community_guidelines",
-                "6162278":"copyright",
-                "2797466":"monetization",
-                "72851":"policies_overview",
-                "1311392":"privacy_and_safety",
-                "2802032":"metadata_policies",
-                "9725604":"advertiser_friendly",
-            }.get(_id, "youtube_policy")
-            print("[WARN] extract_category faltó en runtime; usando fallback para", url)
+        category = _category_from_url(url)
+        print(f"[CAT] {url} -> {category}")
 
-        print(f"[URL] {url} -> category={category}")
-        print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
-        
         try:
             resp = session.get(url, timeout=30)
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
-            # La categoría ya está definida arriba.
             content_text = extract_relevant_text(soup, category)
 
             save_policy(supabase, url=url, category=category, content_text=content_text)
