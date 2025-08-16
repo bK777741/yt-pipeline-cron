@@ -184,10 +184,10 @@ ID_TO_CATEGORY = {
     "9725604": "advertiser_friendly",
 }
 
-def category_from_url(url: str) -> str:
+def extract_category(url: str) -> str:
     """
-    Devuelve una categoría estable en base al ID numérico de la URL
-    .../youtube/answer/<ID>?...
+    Dada una URL tipo .../youtube/answer/<ID>?..., devuelve una categoría estable.
+    Si no encontramos el ID, devolvemos 'youtube_policy'.
     """
     if not url:
         return "youtube_policy"
@@ -196,9 +196,6 @@ def category_from_url(url: str) -> str:
         return "youtube_policy"
     answer_id = m.group(1)
     return ID_TO_CATEGORY.get(answer_id, "youtube_policy")
-
-# Alias para que cualquier llamada previa no rompa:
-extract_category = category_from_url
 
 # ============================================
 
@@ -220,7 +217,7 @@ def main():
         url = normalize_url(raw) or ""
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
-        print(f"[URL] {url} -> category={category_from_url(url)}") # debug log
+        print(f"[URL] {url} -> category={extract_category(url)}")
         print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
         
         try:
@@ -228,7 +225,7 @@ def main():
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
-            category = category_from_url(url)
+            category = extract_category(url)
             content_text = extract_relevant_text(soup, category)
 
             save_policy(supabase, url=url, category=category, content_text=content_text)
