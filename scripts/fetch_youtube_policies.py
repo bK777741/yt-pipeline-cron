@@ -173,7 +173,7 @@ def scrub_controls(s: str) -> str:
     s = "".join(ch for ch in s if 32 <= ord(ch) <= 126 or ch in "/:?&=%._-#")
     return s
 
-# Mapa simple por ID de la página de ayuda de YouTube.# Ajusta los nombres si quieres otras etiquetas.
+# --- Categoría por ID del artículo de ayuda ---
 ID_TO_CATEGORY = {
     "9288567": "community_guidelines",
     "6162278": "copyright",
@@ -183,10 +183,11 @@ ID_TO_CATEGORY = {
     "2802032": "metadata_policies",
     "9725604": "advertiser_friendly",
 }
-def extract_category(url: str) -> str:
+
+def category_from_url(url: str) -> str:
     """
-    Dada una URL tipo .../youtube/answer/<ID>?..., devuelve una categoría estable.
-    Si no encontramos el ID, devolvemos 'youtube_policy'.
+    Devuelve una categoría estable en base al ID numérico de la URL
+    .../youtube/answer/<ID>?...
     """
     if not url:
         return "youtube_policy"
@@ -196,6 +197,8 @@ def extract_category(url: str) -> str:
     answer_id = m.group(1)
     return ID_TO_CATEGORY.get(answer_id, "youtube_policy")
 
+# Alias para que cualquier llamada previa no rompa:
+extract_category = category_from_url
 
 # ============================================
 
@@ -217,6 +220,7 @@ def main():
         url = normalize_url(raw) or ""
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
+        print(f"[URL] {url} -> category={category_from_url(url)}") # debug log
         print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
         
         try:
@@ -224,7 +228,7 @@ def main():
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
-            category = extract_category(url)
+            category = category_from_url(url)
             content_text = extract_relevant_text(soup, category)
 
             save_policy(supabase, url=url, category=category, content_text=content_text)
