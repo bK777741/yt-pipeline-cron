@@ -22,16 +22,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Show commit & script fingerprint
+        run: |
+          set -euo pipefail
+          echo "[GIT] HEAD SHA:" $(git rev-parse HEAD)
+          echo "[FILE] path:"
+          python - <<'PY'
+import os, hashlib
+p = "scripts/fetch_youtube_policies.py"
+print(os.path.abspath(p))
+with open(p, "rb") as f:
+    b = f.read()
+print("[FILE] sha256:", hashlib.sha256(b).hexdigest())
+print("[FILE] head:")
+print("".join(line for i, line in zip(range(1, 80), open(p, "r", encoding="utf-8"))))
+PY
       - name: Smoke test write to Supabase (insert & delete a probe row)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
