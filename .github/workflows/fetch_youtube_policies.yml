@@ -32,20 +32,42 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Debug policy_urls.json (raw)
+      - name: Smoke test write to Supabase (insert & delete a probe row)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path("scripts/policy_urls.json")
-          b = p.read_bytes()
-          print("BYTES:", len(b))
-          print("RAW (show non-printables as \\x..):")
-          print("".join(c if 32 <= ord(c) < 127 else f"\\x{ord(c):02x}" for c in b.decode("utf-8", "ignore")))
-          import json
-          data = json.loads(b.decode("utf-8-sig"))
-          for i, s in enumerate(data, 1):
-              print(i, repr(s), [ord(ch) for ch in s if ord(ch) < 32])
-          PY
+          set -euo pipefail
+          echo "[SMOKE] URL: ${SUPABASE_URL}"
+          echo "[SMOKE] Host: $(echo "${SUPABASE_URL}" | sed -E 's#https?://([^/]+)/?.*#\1#')"
+          json='[{"policy_url":"https://example.com/__probe__",
+                  "category":"probe",
+                  "content_text":"probe row",
+                  "content_hash":"probehash",
+                  "fetched_at":"'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
+                  "last_checked_at":"'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}]'
+
+          echo "[SMOKE] Inserting probe row…"
+          curl -sS -o /tmp/ins.json -w "\nHTTP %{http_code}\n" \
+            "${SUPABASE_URL%/}/rest/v1/youtube_policies" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            -d "${json}"
+
+          echo "[SMOKE] Current count after insert:"
+          curl -sS "${SUPABASE_URL%/}/rest/v1/youtube_policies?select=count" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
+
+          echo
+          echo "[SMOKE] Deleting probe row…"
+          curl -sS -o /tmp/del.json -w "\nHTTP %{http_code}\n" \
+            "${SUPABASE_URL%/}/rest/v1/youtube_policies?policy_url=eq.https://example.com/__probe__" \
+            -X DELETE \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
       
       - name: Run fetch_youtube_policies.py
         env:
