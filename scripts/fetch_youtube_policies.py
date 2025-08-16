@@ -28,32 +28,31 @@ def hash_text(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
 def save_policy(supabase, url: str, category: str, content_text: str):
-    """
-    Upsert en public.youtube_policies con las columnas correctas.
-    Si el hash del contenido no cambia, sólo actualiza last_checked_at.
-    """
     content_text = (content_text or "").strip()
     h = hash_text(content_text)
     now = now_utc_iso()
 
-    # ¿Existe ya esa policy_url?
-    existing = supabase.table(TABLE).select("id, content_hash").eq("policy_url", url).limit(1).execute()
+    print(f"[SAVE] Upsert → {url} (cat={category}, chars={len(content_text)})")
+
+    try:
+        existing = supabase.table(TABLE).select("id, content_hash").eq("policy_url", url).limit(1).execute()
+    except Exception as e:
+        print(f"❌ SELECT error {url}: {e}")
+        return
 
     if existing.data:
         row = existing.data[0]
         if row["content_hash"] == h:
-            # Sin cambios: sólo marcamos último chequeo
-            res = supabase.table(TABLE) \
-                .update({"last_checked_at": now}) \
-                .eq("id", row["id"]) \
-                .execute()
-            if getattr(res, "error", None):
-                print(f"❌ update last_checked_at ERROR {url}: {res.error}")
-            else:
-                print(f"☑️ Sin cambios → last_checked_at: {url}")
+            try:
+                res = supabase.table(TABLE).update({"last_checked_at": now}).eq("id", row["id"]).execute()
+                if getattr(res, "error", None):
+                    print(f"❌ update last_checked_at ERROR {url}: {res.error}")
+                else:
+                    print(f"☑️ Sin cambios (last_checked_at) {url}")
+            except Exception as e:
+                print(f"❌ update last_checked_at EXCEPTION {url}: {e}")
             return
 
-        # Con cambios: actualizamos texto + hash + timestamps
         payload = {
             "category": category,
             "content_text": content_text,
@@ -61,14 +60,16 @@ def save_policy(supabase, url: str, category: str, content_text: str):
             "fetched_at": now,
             "last_checked_at": now,
         }
-        res = supabase.table(TABLE).update(payload).eq("id", row["id"]).execute()
-        if getattr(res, "error", None):
-            print(f"❌ update ERROR {url}: {res.error}")
-        else:
-            print(f"🔁 Actualizada: {url}")
+        try:
+            res = supabase.table(TABLE).update(payload).eq("id", row["id"]).execute()
+            if getattr(res, "error", None):
+                print(f"❌ update ERROR {url}: {res.error}")
+            else:
+                print(f"🔁 Actualizada {url}")
+        except Exception as e:
+            print(f"❌ update EXCEPTION {url}: {e}")
         return
 
-    # No existe: insert
     payload = {
         "policy_url": url,
         "category": category,
@@ -77,24 +78,22 @@ def save_policy(supabase, url: str, category: str, content_text: str):
         "fetched_at": now,
         "last_checked_at": now,
     }
-    res = supabase.table(TABLE).upsert(payload, on_conflict="policy_url").execute()
-    if getattr(res, "error", None):
-        print(f"❌ upsert ERROR {url}: {res.error}")
-    else:
-        print(f"➕ Insertada: {url}")
+    try:
+        res = supabase.table(TABLE).upsert(payload, on_conflict="policy_url").execute()
+        if getattr(res, "error", None):
+            print(f"❌ upsert ERROR {url}: {res.error}")
+        else:
+            print(f"➕ Insertada {url}")
+    except Exception as e:
+        print(f"❌ upsert EXCEPTION {url}: {e}")
 
 def load_policy_urls():
-    # Si hay JSON, úsalo
-    json_path = Path("scripts/policy_urls.json")
-    if json_path.exists():
-        with open(json_path, "r", encoding="utf-8") as f:
-            arr = json.load(f)
-        return [u.strip() for u in arr if isinstance(u, str) and u.strip()]
-
-    # Si viene por env (con comas o líneas), también vale
+    import os, json, re, pathlib
+    p = pathlib.Path("scripts/policy_urls.json")
+    if p.exists():
+        return [u.strip() for u in json.loads(p.read_text(encoding="utf-8")) if isinstance(u, str) and u.strip()]
     raw = os.getenv("POLICY_URLS", "")
-    parts = re.split(r"[\s,]+", raw)
-    return [p.strip() for p in parts if p.strip()]
+    return [s.strip() for s in re.split(r"[\s,]+", raw) if s.strip()]
 
 # ========== Limpieza fuerte de URLs ==========
 # elimina todos los ASCII de control (0-31 y 127)
@@ -166,9 +165,7 @@ def main():
     )
 
     urls = load_policy_urls()
-    print("URLS LOADED:", len(urls))
-    for i, u in enumerate(urls, 1):
-        print(f"[{i}] {repr(u)}")
+    print(f"[MAIN] {len(urls)} URLs a procesar")
 
     pre = supabase.table("youtube_policies").select("id", count="exact").execute()
     print("COUNT BEFORE:", pre.count)
@@ -197,6 +194,7 @@ def main():
             
     post = supabase.table("youtube_policies").select("id", count="exact").execute()
     print("COUNT AFTER:", post.count)
+    print("[MAIN] DONE")
 
 if __name__ == "__main__":
     main()
