@@ -173,6 +173,30 @@ def scrub_controls(s: str) -> str:
     s = "".join(ch for ch in s if 32 <= ord(ch) <= 126 or ch in "/:?&=%._-#")
     return s
 
+# Mapa simple por ID de la página de ayuda de YouTube.# Ajusta los nombres si quieres otras etiquetas.
+ID_TO_CATEGORY = {
+    "9288567": "community_guidelines",
+    "6162278": "copyright",
+    "2797466": "monetization",
+    "72851":   "policies_overview",
+    "1311392": "privacy_and_safety",
+    "2802032": "metadata_policies",
+    "9725604": "advertiser_friendly",
+}
+def extract_category(url: str) -> str:
+    """
+    Dada una URL tipo .../youtube/answer/<ID>?..., devuelve una categoría estable.
+    Si no encontramos el ID, devolvemos 'youtube_policy'.
+    """
+    if not url:
+        return "youtube_policy"
+    m = re.search(r"/answer/(\d+)", url)
+    if not m:
+        return "youtube_policy"
+    answer_id = m.group(1)
+    return ID_TO_CATEGORY.get(answer_id, "youtube_policy")
+
+
 # ============================================
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
