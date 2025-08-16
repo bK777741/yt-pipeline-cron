@@ -176,10 +176,9 @@ def scrub_controls(s: str) -> str:
 # ========== PARCHE CATEGORÍA (idempotente) ==========
 # Si extract_category no existe en este módulo, la definimos aquí mismo.
 try:
-    extract_category  # type: ignore  # ¿ya existe?
+    extract_category  # type: ignore
 except NameError:
     import re as _re
-    # Mapa estable por ID de artículo de ayuda:
     _ID_TO_CATEGORY = {
         "9288567": "community_guidelines",
         "6162278": "copyright",
@@ -190,18 +189,11 @@ except NameError:
         "9725604": "advertiser_friendly",
     }
     def extract_category(url: str) -> str:
-        """
-        Devuelve categoría según .../youtube/answer/<ID>?...
-        Si no hay match, devuelve 'youtube_policy'.
-        """
         if not url:
             return "youtube_policy"
         m = _re.search(r"/answer/(\d+)", url)
-        if not m:
-            return "youtube_policy"
-        return _ID_TO_CATEGORY.get(m.group(1), "youtube_policy")
+        return _ID_TO_CATEGORY.get(m.group(1) if m else None, "youtube_policy")
     print("[DEBUG] extract_category activado en este archivo")
-
 # =====================================================
 
 # User-Agent estable para evitar bloqueos de HEAD/GET
@@ -222,7 +214,28 @@ def main():
         url = normalize_url(raw) or ""
         url = scrub_controls(url)
         url = url.splitlines()[0].strip()
-        print(f"[URL] {url} -> category={extract_category(url)}")
+        
+        # Antes:
+        # category = extract_category(url)
+        # Después (fallback en caliente por si *algo* raro pasa):
+        try:
+            category = extract_category(url)
+        except Exception:
+            import re as _re
+            _m = _re.search(r"/answer/(\d+)", url)
+            _id = _m.group(1) if _m else None
+            category = {
+                "9288567":"community_guidelines",
+                "6162278":"copyright",
+                "2797466":"monetization",
+                "72851":"policies_overview",
+                "1311392":"privacy_and_safety",
+                "2802032":"metadata_policies",
+                "9725604":"advertiser_friendly",
+            }.get(_id, "youtube_policy")
+            print("[WARN] extract_category faltó en runtime; usando fallback para", url)
+
+        print(f"[URL] {url} -> category={category}")
         print("[URL]", repr(url), [ord(c) for c in url if ord(c) < 32])
         
         try:
@@ -230,7 +243,7 @@ def main():
             resp.raise_for_status()
 
             soup = BeautifulSoup(resp.text, 'html.parser')
-            category = extract_category(url)
+            # La categoría ya está definida arriba.
             content_text = extract_relevant_text(soup, category)
 
             save_policy(supabase, url=url, category=category, content_text=content_text)
