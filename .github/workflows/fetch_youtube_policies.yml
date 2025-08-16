@@ -3,92 +3,67 @@ name: Fetch YouTube policies (quincenal)
 on:
   workflow_dispatch:
   schedule:
-    # 06:00 Lima (UTC-5) los días 1 y 15 -> 11:00 UTC
-    - cron: "0 11 1,15 * *"
-
-permissions:
-  contents: read
-
-concurrency:
-  group: fetch-youtube-policies-${{ github.ref }}
-  cancel-in-progress: false
+    # 09:00 UTC los días 1 y 16 de cada mes (04:00 Lima aprox)
+    - cron: "0 9 1,16 * *"
 
 jobs:
-  fetch_youtube_policies:
-    name: Scrape & upsert policies
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install deps
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install beautifulsoup4 lxml
 
+      # (Opcional) inspección rápida del JSON para asegurarnos que no trae \n dentro de las URLs
+      - name: Debug policy_urls.json (raw)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/policy_urls.json")
+          if not p.exists():
+              print("policy_urls.json not found")
+          else:
+              b = p.read_bytes()
+              print("BYTES:", len(b))
+              s = b.decode("utf-8", "ignore")
+              out = []
+              for ch in s:
+                  o = ord(ch)
+                  out.append(ch if 32 <= o < 127 else f"\\x{o:02x}")
+              print("RAW:", "".join(out))
+          PY
+
+      # Ver que el runner usa el script correcto
       - name: Show commit & script fingerprint
         run: |
           set -euo pipefail
-          echo "[GIT] HEAD SHA:" $(git rev-parse HEAD)
-          echo "[FILE] path:"
+          echo "[GIT] HEAD SHA: $(git rev-parse HEAD)"
           python - <<'PY'
-import os, hashlib
-p = "scripts/fetch_youtube_policies.py"
-print(os.path.abspath(p))
-with open(p, "rb") as f:
-    b = f.read()
-print("[FILE] sha256:", hashlib.sha256(b).hexdigest())
-print("[FILE] head:")
-print("".join(line for i, line in zip(range(1, 80), open(p, "r", encoding="utf-8"))))
-PY
-      - name: Smoke test write to Supabase (insert & delete a probe row)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: |
-          set -euo pipefail
-          # Normalizar SUPABASE_URL: quitar CR/LF y barras finales; añadir https:// si falta
-          RAW="${SUPABASE_URL}"
-          BASE="$(printf '%s' "$RAW" | tr -d '\r\n' | sed -E 's#/*$##')"
-          case "$BASE" in
-            http://*|https://*) : ;;
-            *) BASE="https://${BASE}";;
-          esac
+          import os, hashlib
+          p = "scripts/fetch_youtube_policies.py"
+          print(os.path.abspath(p))
+          with open(p, "rb") as f:
+              b = f.read()
+          print("[FILE] sha256:", hashlib.sha256(b).hexdigest())
+          print("[FILE] head:")
+          print("".join(open(p, encoding="utf-8").read().splitlines(True)[:80]))
+          PY
 
-          HOST="$(printf '%s' "$BASE" | sed -E 's#https?://([^/]+)/?.*#\1#')"
-          echo "[SMOKE] Host: ${HOST}"
-          echo "[SMOKE] Using base: ${BASE}"  # GitHub lo enmascara, es normal ver ***
-
-          json='[{"policy_url":"https://example.com/__probe__",
-                  "category":"probe",
-                  "content_text":"probe row",
-                  "content_hash":"probehash",
-                  "fetched_at":"'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",
-                  "last_checked_at":"'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}]'
-
-          echo "[SMOKE] Inserting probe row…"
-          curl -sS -o /tmp/ins.json -w "\nHTTP %{http_code}\n" \
-            "${BASE}/rest/v1/youtube_policies" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=representation" \
-            -d "${json}"
-
-          echo "[SMOKE] Count after insert:"
-          curl -sS "${BASE}/rest/v1/youtube_policies?select=count" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
-          echo
-
-          echo "[SMOKE] Deleting probe row…"
-          curl -sS -o /tmp/del.json -w "\nHTTP %{http_code}\n" \
-            "${BASE}/rest/v1/youtube_policies?policy_url=eq.https://example.com/__probe__" \
-            -X DELETE \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
-            
       - name: Run fetch_youtube_policies.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
