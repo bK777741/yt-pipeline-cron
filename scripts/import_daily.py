@@ -152,25 +152,25 @@ def init_clients(creds, supabase_url, supabase_key):
     sb: Client = create_client(supabase_url, supabase_key)
     return yt, sb
 
-def get_today_window():
-    tz = pytz.timezone("America/Lima")
-    now = datetime.now(tz)
-    midnight = tz.localize(datetime(now.year, now.month, now.day))
-    return midnight, now
-
 def extract_hashtags(description):
     return list(set(re.findall(r"#(\w+)", description))) if description else []
 
 def fetch_videos(yt, channel_id, published_after, max_results):
     try:
-        req = yt.search().list(
-            part="id",
-            channelId=channel_id,
-            publishedAfter=published_after.isoformat(),
-            order="date",
-            type="video",
-            maxResults=max_results,
-        )
+        # Construir parámetros de la solicitud
+        request_params = {
+            "part": "id",
+            "channelId": channel_id,
+            "order": "date",
+            "type": "video",
+            "maxResults": max_results,
+        }
+        
+        # Agregar filtro de fecha si se proporciona
+        if published_after:
+            request_params["publishedAfter"] = published_after.isoformat()
+            
+        req = yt.search().list(**request_params)
         resp = req.execute()
     except HttpError as e:
         if "quotaExceeded" in str(e):
@@ -203,7 +203,8 @@ def fetch_videos(yt, channel_id, published_after, max_results):
                 "hashtags": extract_hashtags(item["snippet"]["description"]),
                 "tags": item["snippet"].get("tags", []),  # Nuevo campo
                 "duration": item["contentDetails"]["duration"],
-                "thumbnails": item["snippet"]["thumbnails"]
+                "thumbnails": item["snippet"]["thumbnails"],
+                "published_at": item["snippet"]["publishedAt"]  # Nuevo campo
             }
             for item in details_resp.get("items", [])
         ]
@@ -219,6 +220,7 @@ def upsert_videos(sb: Client, videos):
             "hashtags": video["hashtags"],
             "tags": video["tags"],  # Nuevo campo
             "duration": video["duration"],
+            "published_at": video["published_at"],  # Nuevo campo
             "imported_at": "now()"
         })
     sb.table("videos").upsert(rows, on_conflict=["video_id"]).execute()
@@ -254,16 +256,47 @@ def main():
     try:
         creds, supabase_url, supabase_key, batch, channel_id = load_env()
         yt, sb = init_clients(creds, supabase_url, supabase_key)
-        start, end = get_today_window()
-        
-        videos = fetch_videos(yt, channel_id, start, batch)
-        video_count = len(videos)
-        
-        if videos:
-            upsert_videos(sb, videos)
-            analyze_and_save_thumbnails(sb, videos)
-        
-        print(f"[import_daily] Vídeos procesados: {video_count}")
+
+        # Buscar cuántos videos ya se han importado en total
+        existing_videos = sb.table("videos").select("video_id", "published_at").order("published_at", desc=True).limit(1).execute()
+        all_videos = sb.table("videos").select("video_id", count="exact").execute()
+        total_imported = all_videos.count if all_videos.count else 0
+
+        # Si no hay videos aún, usar fecha actual como referencia
+        if existing_videos.data:
+            latest_known_date = existing_videos.data[0]["published_at"]
+        else:
+            latest_known_date = datetime.utcnow().isoformat() + "Z"
+
+        # Obtener hasta 50 videos (de más reciente a más antiguos)
+        videos = fetch_videos(yt, channel_id, None, max_results=50)
+
+        # Filtrar los que ya están en Supabase
+        existing_ids = set(row["video_id"] for row in sb.table("videos").select("video_id").execute().data)
+        new_videos = [v for v in videos if v["video_id"] not in existing_ids]
+
+        # Limitar máximo 50
+        videos_to_insert = new_videos[:50]
+
+        if not videos_to_insert:
+            print("[import_daily] No hay videos nuevos para insertar.")
+            return
+
+        upsert_videos(sb, videos_to_insert)
+        print(f"[import_daily] Vídeos insertados: {len(videos_to_insert)}")
+
+        # Contar cuántos ya han sido analizados a fondo (máx 120)
+        thumbs = sb.table("video_thumbnail_analysis").select("video_id", count="exact").execute()
+        analyzed_total = thumbs.count if thumbs.count else 0
+        analizar_restantes = max(0, 120 - analyzed_total)
+
+        if analizar_restantes > 0:
+            analizar_videos = videos_to_insert[:analizar_restantes]
+            analyze_and_save_thumbnails(sb, analizar_videos)
+            print(f"[import_daily] Videos analizados a fondo: {len(analizar_videos)}")
+        else:
+            print("[import_daily] Límite de 120 análisis profundos ya alcanzado.")
+
     except Exception as e:
         print(f"[import_daily] ERROR CRÍTICO: {str(e)}")
         sys.exit(0)  # Siempre termina con código 0
