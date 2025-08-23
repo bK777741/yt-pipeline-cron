@@ -1,7 +1,4 @@
 # Proyecto GitHub → Supabase - Auditoría Completa
-
-Este documento es una versión extendida y detallada del `README.md`, incluyendo el flujo de datos, scripts, estructuras, y relaciones entre GitHub y Supabase, como referencia técnica oficial del proyecto.
-
 ---
 
 ## 🔄 Descripción General
