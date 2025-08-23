@@ -257,41 +257,32 @@ def main():
         creds, supabase_url, supabase_key, batch, channel_id = load_env()
         yt, sb = init_clients(creds, supabase_url, supabase_key)
 
-        # Buscar cuántos videos ya se han importado en total
-        existing_videos = sb.table("videos").select("video_id", "published_at").order("published_at", desc=True).limit(1).execute()
-        all_videos = sb.table("videos").select("video_id", count="exact").execute()
-        total_imported = all_videos.count if all_videos.count else 0
-
-        # Si no hay videos aún, usar fecha actual como referencia
-        if existing_videos.data:
-            latest_known_date = existing_videos.data[0]["published_at"]
-        else:
-            latest_known_date = datetime.utcnow().isoformat() + "Z"
-
+        # Obtener todos los videos existentes en Supabase
+        existing_videos_response = sb.table("videos").select("video_id").execute()
+        existing_ids = {video["video_id"] for video in existing_videos_response.data}
+        
         # Obtener hasta 50 videos (de más reciente a más antiguos)
         videos = fetch_videos(yt, channel_id, None, max_results=50)
 
         # Filtrar los que ya están en Supabase
-        existing_ids = set(row["video_id"] for row in sb.table("videos").select("video_id").execute().data)
         new_videos = [v for v in videos if v["video_id"] not in existing_ids]
 
-        # Limitar máximo 50
-        videos_to_insert = new_videos[:50]
-
-        if not videos_to_insert:
+        if not new_videos:
             print("[import_daily] No hay videos nuevos para insertar.")
             return
 
-        upsert_videos(sb, videos_to_insert)
-        print(f"[import_daily] Vídeos insertados: {len(videos_to_insert)}")
+        # Insertar nuevos videos
+        upsert_videos(sb, new_videos)
+        print(f"[import_daily] Vídeos insertados: {len(new_videos)}")
 
-        # Contar cuántos ya han sido analizados a fondo (máx 120)
-        thumbs = sb.table("video_thumbnail_analysis").select("video_id", count="exact").execute()
-        analyzed_total = thumbs.count if thumbs.count else 0
-        analizar_restantes = max(0, 120 - analyzed_total)
-
-        if analizar_restantes > 0:
-            analizar_videos = videos_to_insert[:analizar_restantes]
+        # Contar cuántos análisis de miniaturas ya existen
+        thumbs_response = sb.table("video_thumbnail_analysis").select("video_id", count="exact").execute()
+        analyzed_total = thumbs_response.count if thumbs_response.count else 0
+        
+        # Analizar solo si no hemos alcanzado el límite de 120
+        if analyzed_total < 120:
+            analizar_restantes = 120 - analyzed_total
+            analizar_videos = new_videos[:analizar_restantes]
             analyze_and_save_thumbnails(sb, analizar_videos)
             print(f"[import_daily] Videos analizados a fondo: {len(analizar_videos)}")
         else:
