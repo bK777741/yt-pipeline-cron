@@ -58,19 +58,19 @@ def fetch_video_metrics(yt, video_id: str):
 def upsert_metrics(sb: Client, video_id: str, metrics: dict, snapshot_date: str):
     row = {
         "video_id": video_id,
-        "snapshot_date": snapshot_date,  # Nueva clave compuesta
+        "snapshot_date": snapshot_date,
         "view_count": metrics.get("view_count"),
         "like_count": metrics.get("like_count"),
         "comment_count": metrics.get("comment_count")
     }
-    sb.table("video_statistics").upsert(row, on_conflict="video_statistics_video_id_snapshot_date_key").execute()
+    sb.table("video_statistics").upsert(row, on_conflict=["video_id", "snapshot_date"]).execute()
 
 def main():
     creds, supabase_url, supabase_key = load_env()
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
     vids = fetch_recent_videos(sb, limit=50)
-    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")  # Fecha en UTC
+    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     for vid in vids:
         m = fetch_video_metrics(yt, vid)
