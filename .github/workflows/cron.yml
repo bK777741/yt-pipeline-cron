@@ -3,8 +3,8 @@ name: YouTube → Supabase pipeline
 
 # ========= CONFIGURACIÓN GLOBAL DEL WORKFLOW =========
 concurrency:
-  group: youtube-supabase-schedule
-  cancel-in-progress: false
+  group: youtube-supabase-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
@@ -14,29 +14,72 @@ env:
 # ========= DISPARADORES (TRIGGERS) DEL WORKFLOW =========
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Ejecutar solo este job (opcional)"
+        required: false
+        type: choice
+        options:
+          - ""  # vacío = respeta los slots/horarios
+          - import_daily
+          - import_captions
+          - import_recent_comments
+          - reconcile_comments
+          - maint_metrics
+          - fetch_trending_videos
+          - refine_trending_with_niche
+          - scan_competencia_auto_nicho
+          - purge_buffer
+          - fetch_comment_sentiment
+          - fetch_search_trends
+          - fetch_monetization_metrics
+          - fetch_video_analytics
+          - build_channel_profile
+          - build_niche_profile
+          - export_sync_watermarks
+          - compute_posting_schedule
+          - convert_captions_to_script
+          - detect_thumbnail_objects
+          - extract_thumbnail_text
+      force:
+        description: "Ignorar checkpoint y ejecutar de todas formas"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false","true"]
+      persist_checkpoint:
+        description: "Guardar checkpoint al terminar"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true","false"]
   push:
-    branches:
-      - main
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/cron.yml'
+      - 'requirements.txt'
+      - '*.py'
   schedule:
-    # Schedules para jobs originales
-    - cron: "0 7 * * *"      # import_daily
-    - cron: "15 7 * * *"     # import_captions
-    - cron: "30 7 * * *"     # import_recent_comments
-    - cron: "45 7 * * *"     # reconcile_comments
-    - cron: "0 8 * * *"      # fetch_comment_sentiment
-    - cron: "0 9 * * *"      # maint_metrics
-    - cron: "0 10 * * *"     # fetch_video_analytics
-    - cron: "30 10 * * *"    # compute_posting_schedule
-    - cron: "0 11 * * *"     # fetch_monetization_metrics
-    - cron: "30 11 * * *"    # fetch_trending_videos
-    - cron: "45 11 * * *"    # fetch_search_trends
-    - cron: "55 4 * * *"     # purge_buffer
+    # Schedules para jobs originales (UTC)
+    - cron: "0 12 * * *"      # import_daily (07:00 Lima)
+    - cron: "15 12 * * *"     # import_captions (07:15 Lima)
+    - cron: "30 12 * * *"     # import_recent_comments (07:30 Lima)
+    - cron: "45 12 * * *"     # reconcile_comments (07:45 Lima)
+    - cron: "0 13 * * *"      # fetch_comment_sentiment (08:00 Lima)
+    - cron: "0 14 * * *"      # maint_metrics (09:00 Lima)
+    - cron: "0 15 * * *"      # fetch_video_analytics (10:00 Lima)
+    - cron: "30 15 * * *"     # compute_posting_schedule (10:30 Lima)
+    - cron: "0 16 * * *"      # fetch_monetization_metrics (11:00 Lima)
+    - cron: "30 16 * * *"     # fetch_trending_videos (11:30 Lima)
+    - cron: "45 16 * * *"     # fetch_search_trends (11:45 Lima)
+    - cron: "55 9 * * *"      # purge_buffer (04:55 Lima)
 
-    # Schedules para el NUEVO MÓDULO AUTO-NICHO
-    - cron: "0 5 * * *"      # build_niche_profile (una vez al día, temprano)
-    - cron: "0 6 * * *"      # scan_competencia_auto_nicho (ronda mañana)
-    - cron: "0 13 * * *"     # scan_competencia_auto_nicho (ronda mediodía)
-    - cron: "0 21 * * *"     # scan_competencia_auto_nicho (ronda noche)
+    # Schedules para el NUEVO MÓDULO AUTO-NICHO (UTC)
+    - cron: "0 10 * * *"      # build_niche_profile (05:00 Lima)
+    - cron: "0 11 * * *"      # scan_competencia_auto_nicho (06:00 Lima)
+    - cron: "0 18 * * *"      # scan_competencia_auto_nicho (13:00 Lima)
+    - cron: "0 2 * * *"       # scan_competencia_auto_nicho (21:00 Lima)
 
 jobs:
   # =====================================================================================
@@ -45,6 +88,10 @@ jobs:
   import_daily:
     name: "PASO 1: Importar Videos Diarios (Crítico)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_daily')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'push')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,7 +107,24 @@ jobs:
           sudo apt-get install -y tesseract-ocr libgl1
       - name: Instalar dependencias de Python
         run: pip install -r requirements.txt
-      - name: Ejecutar import_daily.py con reintentos
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/import_daily
+          key: import-daily-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "import_daily ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -69,7 +133,7 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/import_daily.py
+            python ${{ steps.pydir.outputs.PYDIR }}/import_daily.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -79,6 +143,12 @@ jobs:
           DAILY_VIDEO_BATCH: ${{ secrets.DAILY_VIDEO_BATCH }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           ENABLE_THUMBNAIL_OCR: "true"
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/import_daily
+          key: import-daily-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -102,15 +172,39 @@ jobs:
     name: "PASO 2a: Importar Subtítulos (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_captions')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '15 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.import_daily.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar import_captions.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/import_captions
+          key: import-captions-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "import_captions ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -119,13 +213,19 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/import_captions.py
+            python ${{ steps.pydir.outputs.PYDIR }}/import_captions.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/import_captions
+          key: import-captions-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -146,52 +246,150 @@ jobs:
     name: "PASO 2b: Importar Comentarios (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ needs.import_daily.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_recent_comments')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '30 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.import_daily.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - name: Ejecutar import_recent_comments.py
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/import_recent_comments
+          key: import-recent-comments-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "import_recent_comments ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRECH_TOKEN }}
           MAX_VIDEOS_PER_RUN: 50
           MAX_COMMENTS_PER_VIDEO: 500
-        run: python ./scripts/import_recent_comments.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/import_recent_comments.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/import_recent_comments
+          key: import-recent-comments-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   detect_thumbnail_objects:
     name: "PASO 2c: Detectar Objetos en Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' && needs.import_daily.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'detect_thumbnail_objects')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (vars.THUMB_OBJECTS_ENABLED == 'true') && (github.event_name == 'workflow_dispatch' || needs.import_daily.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/detect_thumbnail_objects
+          key: detect-thumbnail-objects-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "detect_thumbnail_objects ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/detect_thumbnail_objects.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/detect_thumbnail_objects.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/detect_thumbnail_objects
+          key: detect-thumbnail-objects-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   extract_thumbnail_text:
     name: "PASO 2d: Extraer Texto de Thumbnails (Paralelo)"
     runs-on: ubuntu-latest
     needs: import_daily
-    if: ${{ vars.THUMB_OCR_ENABLED == 'true' && needs.import_daily.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'extract_thumbnail_text')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (vars.THUMB_OCR_ENABLED == 'true') && (github.event_name == 'workflow_dispatch' || needs.import_daily.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/extract_thumbnail_text
+          key: extract-thumbnail-text-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "extract_thumbnail_text ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/extract_thumbnail_text.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/extract_thumbnail_text.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/extract_thumbnail_text
+          key: extract-thumbnail-text-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   # =====================================================================================
   # PASO 3: PROCESAMIENTO SECUNDARIO (DEPENDENCIAS EN CADENA)
@@ -200,35 +398,100 @@ jobs:
     name: "PASO 3a: Convertir Subtítulos a Guion"
     runs-on: ubuntu-latest
     needs: import_captions
-    if: ${{ needs.import_captions.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'convert_captions_to_script')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '15 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.import_captions.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/convert_captions_to_script
+          key: convert-captions-to-script-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "convert_captions_to_script ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/convert_captions_to_script.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/convert_captions_to_script.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/convert_captions_to_script
+          key: convert-captions-to-script-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   reconcile_comments:
     name: "PASO 3b: Reconciliar Comentarios"
     runs-on: ubuntu-latest
     needs: import_recent_comments
-    if: ${{ needs.import_recent_comments.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'reconcile_comments')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '45 12 * * *') ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.import_recent_comments.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - name: Ejecutar reconcile_comments.py
-        run: python ./scripts/reconcile_comments.py
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/reconcile_comments
+          key: reconcile-comments-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "reconcile_comments ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/reconcile_comments.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/reconcile_comments
+          key: reconcile-comments-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   # =====================================================================================
   # PASO 4: ANÁLISIS DE SENTIMIENTO (DEPENDE DE LA CADENA DE COMENTARIOS)
@@ -237,16 +500,49 @@ jobs:
     name: "PASO 4: Analizar Sentimiento de Comentarios"
     runs-on: ubuntu-latest
     needs: reconcile_comments
-    if: ${{ needs.reconcile_comments.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_comment_sentiment')) ||
+        (github.event_name == 'schedule' && github.event.schedule == '0 13 * * *') ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.reconcile_comments.result == 'success')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r requirements.txt
-      - env:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/fetch_comment_sentiment
+          key: fetch-comment-sentiment-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "fetch_comment_sentiment ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ./scripts/fetch_comment_sentiment.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/fetch_comment_sentiment.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/fetch_comment_sentiment
+          key: fetch-comment-sentiment-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   # =====================================================================================
   # PASO 5: MÉTRICAS Y TENDENCIAS (INDEPENDIENTES Y EN PARALELO)
@@ -254,14 +550,38 @@ jobs:
   maint_metrics:
     name: "PASO 5a: Mantener Métricas (Paralelo)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'maint_metrics')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 14 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar maint_metrics.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/maint_metrics
+          key: maint-metrics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "maint_metrics ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -270,13 +590,19 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/maint_metrics.py
+            python ${{ steps.pydir.outputs.PYDIR }}/maint_metrics.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/maint_metrics
+          key: maint-metrics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -296,14 +622,38 @@ jobs:
   fetch_video_analytics:
     name: "PASO 5b: Obtener Analíticas (Paralelo)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_video_analytics')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 15 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar fetch_video_analytics.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/fetch_video_analytics
+          key: fetch-video-analytics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "fetch_video_analytics ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -312,13 +662,19 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_video_analytics.py
+            python ${{ steps.pydir.outputs.PYDIR }}/fetch_video_analytics.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/fetch_video_analytics
+          key: fetch-video-analytics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -338,14 +694,38 @@ jobs:
   compute_posting_schedule:
     name: "PASO 5c: Calcular Horario de Publicación (Paralelo)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'compute_posting_schedule')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 15 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar compute_posting_schedule.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/compute_posting_schedule
+          key: compute-posting-schedule-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "compute_posting_schedule ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -354,10 +734,16 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/compute_posting_schedule.py
+            python ${{ steps.pydir.outputs.PYDIR }}/compute_posting_schedule.py
         env:
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/compute_posting_schedule
+          key: compute-posting-schedule-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -377,14 +763,38 @@ jobs:
   fetch_monetization_metrics:
     name: "PASO 5d: Obtener Métricas de Monetización (Paralelo)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_monetization_metrics')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 16 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar fetch_monetization_metrics.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/fetch_monetization_metrics
+          key: fetch-monetization-metrics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "fetch_monetization_metrics ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -393,13 +803,19 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_monetization_metrics.py
+            python ${{ steps.pydir.outputs.PYDIR }}/fetch_monetization_metrics.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/fetch_monetization_metrics
+          key: fetch-monetization-metrics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -420,6 +836,10 @@ jobs:
     name: "PASO 5e: Obtener Videos en Tendencia (No Crítico)"
     runs-on: ubuntu-latest
     continue-on-error: true
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_trending_videos')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 16 * * *') ||
+      (github.event_name == 'push')
     env:
       REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
       ALLOWED_LANGS: "es,en,hi,pt"
@@ -428,13 +848,33 @@ jobs:
       MAX_LONGS_PER_DAY: 15
       PAGES_PER_REGION: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - name: Ejecutar fetch_trending_videos.py con reintentos
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/fetch_trending_videos
+          key: fetch-trending-videos-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "fetch_trending_videos ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -443,14 +883,20 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_trending_videos.py
+            python ${{ steps.pydir.outputs.PYDIR }}/fetch_trending_videos.py
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/fetch_trending_videos
+          key: fetch-trending-videos-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Subir artefacto de reporte
-        if: success()
+        if: ${{ steps.cache.outputs.cache-hit != 'true' && success() }}
         uses: actions/upload-artifact@v4
         with:
           name: trending-report
@@ -474,16 +920,40 @@ jobs:
   fetch_search_trends:
     name: "PASO 5f: Obtener Tendencias de Búsqueda (Paralelo)"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == 'fetch_search_trends' || inputs.only == '')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '45 16 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - run: pip install -r requirements.txt
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
       - name: Instalar pytrends
         run: pip install pytrends
-      - name: Ejecutar fetch_search_trends.py con reintentos
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/fetch_search_trends
+          key: fetch-search-trends-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "fetch_search_trends ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
           max_attempts: 2
@@ -492,7 +962,7 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ./scripts/fetch_search_trends.py
+            python ${{ steps.pydir.outputs.PYDIR }}/fetch_search_trends.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -500,6 +970,12 @@ jobs:
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/fetch_search_trends
+          key: fetch-search-trends-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -522,19 +998,48 @@ jobs:
   purge_buffer:
     name: "MANTENIMIENTO: Purgar Buffer"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'purge_buffer')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '55 9 * * *') ||
+      (github.event_name == 'push')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'pip'
-      - name: Install deps
+      - name: Instalar dependencias de Python
         run: pip install -r requirements.txt
-      - name: Purge buffer
-        run: python -u ./scripts/purge_buffer.py
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/purge_buffer
+          key: purge-buffer-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "purge_buffer ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: python -u ${{ steps.pydir.outputs.PYDIR }}/purge_buffer.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/purge_buffer
+          key: purge-buffer-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Notificar fallo por email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -554,16 +1059,51 @@ jobs:
   export_sync_watermarks:
     name: "MANTENIMIENTO: Exportar Sync Watermarks"
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'export_sync_watermarks')) ||
+      (github.event_name == 'push')
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install deps
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
         run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/export_sync_watermarks
+          key: export-sync-watermarks-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "export_sync_watermarks ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/export_sync_watermarks.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/export_sync_watermarks
+          key: export-sync-watermarks-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
       - name: Probe Supabase REST (must be 200/204)
         if: always()
         env:
@@ -590,15 +1130,6 @@ jobs:
           payload = json.loads(base64.urlsafe_b64decode(parts[1] + '='*((4-len(parts[1])%4)%4)).decode())
           print("role:", payload.get("role"))
           PY
-      - name: Ejecutar export_sync_watermarks.py
-        env:
-          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: |
-          set -euo pipefail
-          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
-          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-          python ./scripts/export_sync_watermarks.py
 
   # =====================================================================================
   # MÓDULO AUTO-NICHO: PASO 1 - CONSTRUIR PERFIL
@@ -606,6 +1137,10 @@ jobs:
   build_niche_profile:
     name: "Auto-Nicho: Construir Perfil del Canal"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'build_niche_profile')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * *') ||
+      (github.event_name == 'push')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -624,12 +1159,35 @@ jobs:
           key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
       - name: Instalar dependencias (incluyendo ML)
         run: pip install -r requirements.txt
-      - name: Ejecutar script de construcción de perfil
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/build_niche_profile
+          key: build-niche-profile-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "build_niche_profile ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NICHES_TOP_N_VIDEOS: 150
-        run: python scripts/build_niche_profile.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/build_niche_profile.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/build_niche_profile
+          key: build-niche-profile-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   # =====================================================================================
   # MÓDULO AUTO-NICHO: PASO 2 - ESCANEAR COMPETENCIA
@@ -638,7 +1196,11 @@ jobs:
     name: "Auto-Nicho: Escanear Competencia"
     runs-on: ubuntu-latest
     needs: build_niche_profile
-    if: ${{ needs.build_niche_profile.result == 'success' }}
+    if: |
+      ( (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'scan_competencia_auto_nicho')) ||
+        (github.event_name == 'schedule' && (github.event.schedule == '0 11 * * *' || github.event.schedule == '0 18 * * *' || github.event.schedule == '0 2 * * *')) ||
+        (github.event_name == 'push')
+      ) && (github.event_name == 'workflow_dispatch' || needs.build_niche_profile.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -662,7 +1224,24 @@ jobs:
           python -m pip install -r requirements.txt
           echo "Forzando la reinstalación de isodate para evitar problemas de caché..."
           python -m pip install --upgrade --force-reinstall "isodate>=0.6.1"
-      - name: Ejecutar script de escaneo
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día UTC)
+        id: slot
+        run: echo "SLOT=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/scan_competencia_auto_nicho
+          key: scan-competencia-auto-nicho-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "scan_competencia_auto_nicho ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -674,4 +1253,10 @@ jobs:
           TH_MIN: ${{ vars.TH_MIN || 0.58 }}
           TARGET_SHORTS: ${{ vars.TARGET_SHORTS || 15 }}
           TARGET_LONGS: ${{ vars.TARGET_LONGS || 10 }}
-        run: python scripts/scan_competencia_auto_nicho.py
+        run: python ${{ steps.pydir.outputs.PYDIR }}/scan_competencia_auto_nicho.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/scan_competencia_auto_nicho
+          key: scan-competencia-auto-nicho-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
