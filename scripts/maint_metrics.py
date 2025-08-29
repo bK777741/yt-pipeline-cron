@@ -9,6 +9,12 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
 
+# Firma de versión para verificar en CI
+REV = "maint_metrics REV=fix-on_conflict-STRING"
+
+# on_conflict debe ser CADENA exacta
+ON_CONFLICT = "video_id,snapshot_date"
+
 def load_env():
     creds = Credentials(
         token=None,
@@ -65,12 +71,11 @@ def upsert_metrics(sb: Client, video_id: str, metrics: dict, snapshot_date: str)
         "like_count": metrics.get("like_count"),
         "comment_count": metrics.get("comment_count"),
     }
-    # IMPORTANTE: on_conflict como CADENA
-    sb.table("video_statistics").upsert(
-        row, on_conflict="video_id,snapshot_date"
-    ).execute()
+    # Uso explícito de cadena en on_conflict
+    sb.table("video_statistics").upsert(row, on_conflict=ON_CONFLICT).execute()
 
 def main():
+    print(REV)
     creds, supabase_url, supabase_key = load_env()
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
