@@ -70,7 +70,7 @@ def main():
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
     vids = fetch_recent_videos(sb, limit=50)
-    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    snapshot_date = datetime.now(timezone.utc).date().isoformat()
     
     for vid in vids:
         m = fetch_video_metrics(yt, vid)
