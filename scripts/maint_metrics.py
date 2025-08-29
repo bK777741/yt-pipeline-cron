@@ -10,6 +10,10 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
 
+# Lee la variable de entorno para el control condicional de ejecución.
+# Se convierte a booleano: será True si la variable es "true", "1", o "t".
+VISUAL_PIPELINE = os.environ.get("VISUAL_PIPELINE", "false").lower() in ("true", "1", "t")
+
 def load_env():
     creds = Credentials(
         token=None,
@@ -80,4 +84,8 @@ def main():
     print(f"[maint_metrics] Métricas actualizadas para {len(vids)} vídeos (snapshot: {snapshot_date})")
 
 if __name__ == "__main__":
-    main()
+    # Ejecutar solo si está habilitado el modo visual
+    if VISUAL_PIPELINE:
+        main()
+    else:
+        print("VISUAL_PIPELINE está deshabilitado. No se ejecuta el main.")
