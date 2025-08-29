@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 maint_metrics.py
-Actualiza métricas de los últimos 50 vídeos importados.
+Actualiza métricas de los últimos 50 vídeos publicados.
 """
 
 import os
@@ -30,7 +30,7 @@ def init_clients(creds, supabase_url, supabase_key):
 def fetch_recent_videos(sb: Client, limit: int = 50):
     resp = sb.table("videos") \
              .select("video_id") \
-             .order("imported_at", desc=True) \
+             .order("published_at", desc=True) \
              .limit(limit) \
              .execute()
     return [row["video_id"] for row in resp.data]
