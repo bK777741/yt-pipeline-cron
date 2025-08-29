@@ -67,7 +67,7 @@ def upsert_metrics(sb: Client, video_id: str, metrics: dict, snapshot_date: str)
         "like_count": metrics.get("like_count"),
         "comment_count": metrics.get("comment_count")
     }
-    sb.table("video_statistics").upsert(row, on_conflict=["video_id", "snapshot_date"]).execute()
+    sb.table("video_statistics").upsert(row, on_conflict="video_id,snapshot_date").execute()
 
 def main():
     creds, supabase_url, supabase_key = load_env()
