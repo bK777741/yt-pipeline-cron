@@ -1,0 +1,704 @@
+# .github/workflows/pipeline_visual.yml
+name: YouTube → Pipeline visual (encadenado)
+
+on:
+  workflow_dispatch:
+    inputs:
+      segment:
+        description: "Qué tramo ejecutar"
+        required: false
+        type: choice
+        options: [all, core_1_a_4, autonicho, paso_5, mantenimiento]
+        default: all
+
+concurrency:
+  group: youtube-supabase-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: America/Lima
+  THUMB_OBJECTS_ENABLED: ${{ vars.THUMB_OBJECTS_ENABLED || 'false' }}
+  THUMB_OCR_ENABLED: ${{ vars.THUMB_OCR_ENABLED || 'false' }}
+  NICHES_EMBEDDING_ENABLED: ${{ vars.NICHES_EMBEDDING_ENABLED || 'false' }}
+
+jobs:
+  visual_import_daily:
+    name: "VISUAL · PASO 1: Importar Videos Diarios"
+    runs-on: ubuntu-latest
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias del sistema (OCR/OpenCV)
+        if: ${{ vars.THUMB_OCR_ENABLED == 'true' || vars.THUMB_OBJECTS_ENABLED == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr libgl1
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DAILY_VIDEO_BATCH: ${{ secrets.DAILY_VIDEO_BATCH }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          ENABLE_THUMBNAIL_OCR: "true"
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/import_daily.py
+
+  visual_import_captions:
+    name: "VISUAL · PASO 2a: Importar Subtítulos"
+    runs-on: ubuntu-latest
+    needs: [visual_import_daily]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/import_captions.py
+
+  visual_import_recent_comments:
+    name: "VISUAL · PASO 2b: Importar Comentarios Recientes"
+    runs-on: ubuntu-latest
+    needs: [visual_import_captions]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          MAX_VIDEOS_PER_RUN: 50
+          MAX_COMMENTS_PER_VIDEO: 500
+        run: python ${{ steps.pydir.outputs.PYDIR }}/import_recent_comments.py
+
+  visual_detect_thumbnail_objects:
+    name: "VISUAL · PASO 2c: Detectar Objetos en Thumbnails"
+    runs-on: ubuntu-latest
+    needs: [visual_import_recent_comments]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        if: ${{ vars.THUMB_OBJECTS_ENABLED == 'true' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/detect_thumbnail_objects.py
+
+  visual_extract_thumbnail_text:
+    name: "VISUAL · PASO 2d: Extraer Texto de Thumbnails"
+    runs-on: ubuntu-latest
+    needs: [visual_detect_thumbnail_objects]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        if: ${{ vars.THUMB_OCR_ENABLED == 'true' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/extract_thumbnail_text.py
+
+  visual_convert_captions_to_script:
+    name: "VISUAL · PASO 3a: Convertir Subtítulos a Guion"
+    runs-on: ubuntu-latest
+    needs: [visual_extract_thumbnail_text]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/convert_captions_to_script.py
+
+  visual_reconcile_comments:
+    name: "VISUAL · PASO 3b: Reconciliar Comentarios"
+    runs-on: ubuntu-latest
+    needs: [visual_convert_captions_to_script]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/reconcile_comments.py
+
+  visual_fetch_comment_sentiment:
+    name: "VISUAL · PASO 4: Analizar Sentimiento"
+    runs-on: ubuntu-latest
+    needs: [visual_reconcile_comments]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/fetch_comment_sentiment.py
+
+  visual_build_niche_profile:
+    name: "VISUAL · Auto-Nicho: Construir Perfil"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_comment_sentiment]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'autonicho' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
+      - name: Instalar dependencias (incluyendo ML)
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NICHES_TOP_N_VIDEOS: 150
+        run: python ${{ steps.pydir.outputs.PYDIR }}/build_niche_profile.py
+
+  visual_scan_competencia_auto_nicho:
+    name: "VISUAL · Auto-Nicho: Escanear Competencia"
+    runs-on: ubuntu-latest
+    needs: [visual_build_niche_profile]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'autonicho' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
+      - name: Instalar dependencias y forzar isodate
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          echo "Forzando la reinstalación de isodate para evitar problemas de caché..."
+          python -m pip install --upgrade --force-reinstall "isodate>=0.6.1"
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          AUTO_NICHO_SHADOW: ${{ vars.AUTO_NICHO_SHADOW || 'true' }}
+          TH_SHORTS: ${{ vars.TH_SHORTS || 0.65 }}
+          TH_LONGS: ${{ vars.TH_LONGS || 0.70 }}
+          TH_MIN: ${{ vars.TH_MIN || 0.58 }}
+          TARGET_SHORTS: ${{ vars.TARGET_SHORTS || 15 }}
+          TARGET_LONGS: ${{ vars.TARGET_LONGS || 10 }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/scan_competencia_auto_nicho.py
+
+  visual_maint_metrics:
+    name: "VISUAL · PASO 5a: Mantener Métricas"
+    runs-on: ubuntu-latest
+    needs: [visual_scan_competencia_auto_nicho]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/maint_metrics.py
+
+  visual_fetch_video_analytics:
+    name: "VISUAL · PASO 5b: Obtener Analíticas de Video"
+    runs-on: ubuntu-latest
+    needs: [visual_maint_metrics]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Debug - Verificar commit y código actual
+        run: |
+          echo "=== COMMIT ACTUAL ==="
+          git log -1 --oneline
+          echo "=== SHA COMPLETO ==="
+          git rev-parse HEAD
+          echo "=== LÍNEA 52 de fetch_video_analytics.py ==="
+          sed -n '52p' scripts/fetch_video_analytics.py
+          echo "=== VERIFICAR on_conflict (debe ser STRING) ==="
+          grep -n "on_conflict" scripts/fetch_video_analytics.py | head -5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/fetch_video_analytics.py
+
+  visual_compute_posting_schedule:
+    name: "VISUAL · PASO 5c: Calcular Horario de Publicación"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_video_analytics]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 1
+      - name: Debug - Verificar commit y archivo
+        run: |
+          echo "=== COMMIT ACTUAL ==="
+          git log -1 --oneline
+          echo "=== LÍNEA 21 de compute_posting_schedule.py ==="
+          sed -n '21p' scripts/compute_posting_schedule.py
+          echo "=== LÍNEA 67 de compute_posting_schedule.py ==="
+          sed -n '67p' scripts/compute_posting_schedule.py
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/compute_posting_schedule.py
+
+  visual_fetch_monetization_metrics:
+    name: "VISUAL · PASO 5d: Obtener Métricas de Monetización"
+    runs-on: ubuntu-latest
+    needs: [visual_compute_posting_schedule]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/fetch_monetization_metrics.py
+
+  visual_fetch_trending_videos:
+    name: "VISUAL · PASO 5e: Obtener Videos en Tendencia"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_monetization_metrics]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
+          ALLOWED_LANGS: "es,en,hi,pt"
+          LONG_MIN_SECONDS: 180
+          MAX_SHORTS_PER_DAY: 20
+          MAX_LONGS_PER_DAY: 15
+          PAGES_PER_REGION: 1
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/fetch_trending_videos.py
+
+  visual_refine_trending_with_niche:
+    name: "VISUAL · PASO 5e.1: Refinar Tendencias con Nicho"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_trending_videos]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/refine_trending_with_niche.py
+
+  visual_fetch_search_trends:
+    name: "VISUAL · PASO 5f: Obtener Tendencias de Búsqueda"
+    runs-on: ubuntu-latest
+    needs: [visual_refine_trending_with_niche]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Instalar pytrends
+        run: pip install pytrends
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/fetch_search_trends.py
+
+  visual_purge_buffer:
+    name: "VISUAL · Mantenimiento: Purgar Buffer"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_search_trends]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'mantenimiento' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python -u ${{ steps.pydir.outputs.PYDIR }}/purge_buffer.py
+
+  visual_export_sync_watermarks:
+    name: "VISUAL · Mantenimiento: Exportar Sync Watermarks"
+    runs-on: ubuntu-latest
+    needs: [visual_purge_buffer]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'mantenimiento' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/export_sync_watermarks.py

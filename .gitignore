@@ -1,0 +1,10 @@
+.env
+.env.local
+credentials/*.json
+credentials/.env.local
+pycache/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.Python
