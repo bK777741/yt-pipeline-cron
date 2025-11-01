@@ -33,7 +33,9 @@ def fetch_monetization(yt_analytics, video_id):
             ids="channel==MINE",
             startDate="2020-01-01",
             endDate=today,
-            metrics="impressions,impressionCtr,averageCpm,estimatedRevenue,adImpressions,estimatedMonetizedPlaybacks",
+            # FIX 2025-11-01: Eliminadas métricas inválidas (impressions, impressionCtr, averageCpm)
+            # Usando solo métricas válidas de YouTube Analytics API v2
+            metrics="views,estimatedRevenue,monetizedPlaybacks,playbackBasedCpm,adImpressions",
             filters=f"video=={video_id}"
         ).execute()
         return report.get("rows", [])[0] if report.get("rows") else None
@@ -43,15 +45,15 @@ def fetch_monetization(yt_analytics, video_id):
 
 def save_monetization(sb, video_id, data):
     # FORZADO 2025-10-31: on_conflict STRING format
+    # FIX 2025-11-01: Actualizado para nuevas métricas (views, estimatedRevenue, monetizedPlaybacks, playbackBasedCpm, adImpressions)
     payload = {
         "video_id": video_id,
         "snapshot_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "impressions": data[0],
-        "impression_ctr": data[1],
-        "average_cpm": data[2],
-        "estimated_revenue": data[3],
-        "ad_impressions": data[4],
-        "estimated_monetized_playbacks": data[5]
+        "views": data[0],
+        "estimated_revenue": data[1],
+        "monetized_playbacks": data[2],
+        "playback_based_cpm": data[3],
+        "ad_impressions": data[4]
     }
     # CRÍTICO: "col1,col2" NO ["col1","col2"]
     sb.table("video_analytics").upsert(payload, on_conflict="video_id,snapshot_date").execute()

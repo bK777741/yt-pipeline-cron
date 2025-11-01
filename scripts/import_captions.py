@@ -68,15 +68,16 @@ def upsert_caption(sb: Client, video_id, text, language="es"):
     }, on_conflict=["video_id", "language"]).execute()
 
 def main():
+    creds, supabase_url, supabase_key = load_env()
+    yt, sb = init_clients(creds, supabase_url, supabase_key)
+
     # Control de frecuencia (ejecutar cada 3 días)
+    # FIX 2025-11-01: Pasar cliente Supabase para verificar watermarks
     if QUOTA_TRACKING_ENABLED:
-        if not debe_ejecutarse_hoy("import_captions"):
+        if not debe_ejecutarse_hoy("import_captions", sb):
             print("[import_captions] No debe ejecutarse hoy (frecuencia: cada 3 días)")
             print("[import_captions] Saltando ejecución para ahorrar cuota")
             sys.exit(0)
-
-    creds, supabase_url, supabase_key = load_env()
-    yt, sb = init_clients(creds, supabase_url, supabase_key)
 
     video_ids = fetch_recent_videos(sb)
 
@@ -105,6 +106,18 @@ def main():
         total_units = (captions_downloaded * 250)  # 50 + 200 por caption descargado
         registrar_uso_cuota("captions", total_units, sb)
         print(f"[import_captions] Cuota API usada: {total_units} unidades")
+
+    # FIX 2025-11-01: Registrar ejecución exitosa para watermark
+    if QUOTA_TRACKING_ENABLED:
+        try:
+            from datetime import timezone as tz
+            sb.table("script_execution_log").upsert({
+                "script_name": "import_captions",
+                "last_run": datetime.now(tz.utc).isoformat(),
+                "status": "success"
+            }, on_conflict="script_name").execute()
+        except Exception as e:
+            print(f"[WARNING] Error registrando watermark: {e}")
 
     print(f"[import_captions] Subtítulos procesados: {captions_downloaded}/{len(video_ids)}")
 

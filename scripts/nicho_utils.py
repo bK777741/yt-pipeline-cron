@@ -406,8 +406,13 @@ def get_limite_cuota_operacion(nombre_script: str) -> int:
     script_config = distribucion.get(nombre_script, {})
     return script_config.get("unidades", 0)
 
-def debe_ejecutarse_hoy(nombre_script: str) -> bool:
-    """Determina si un script debe ejecutarse hoy según su frecuencia"""
+def debe_ejecutarse_hoy(nombre_script: str, sb_client=None) -> bool:
+    """
+    Determina si un script debe ejecutarse hoy según su frecuencia
+
+    FIX 2025-11-01: Usar watermarks para calcular días transcurridos REALES
+    en lugar de día del mes % 3
+    """
     distribucion = CONFIG["cuota_youtube_api"]["distribucion_diaria"]
     script_config = distribucion.get(nombre_script, {})
     frecuencia = script_config.get("frecuencia", "diaria")
@@ -415,8 +420,30 @@ def debe_ejecutarse_hoy(nombre_script: str) -> bool:
     if frecuencia == "diaria":
         return True
     elif frecuencia == "cada_3_dias":
-        # Lógica simple: día del mes % 3 == 0
-        return datetime.now().day % 3 == 0
+        # FIX: Usar watermarks para verificar última ejecución
+        if sb_client:
+            try:
+                result = sb_client.table("script_execution_log") \
+                    .select("last_run") \
+                    .eq("script_name", nombre_script) \
+                    .order("last_run", desc=True) \
+                    .limit(1) \
+                    .execute()
+
+                if result.data:
+                    last_run = datetime.fromisoformat(result.data[0]["last_run"].replace('Z', '+00:00'))
+                    dias_desde_ultima = (datetime.now(last_run.tzinfo) - last_run).days
+                    return dias_desde_ultima >= 3
+                else:
+                    # Primera ejecución
+                    return True
+            except Exception as e:
+                print(f"[WARNING] Error verificando watermark: {e}, ejecutando por defecto")
+                return True
+        else:
+            # Fallback a lógica anterior si no hay cliente Supabase
+            # Usar día del año para distribuir mejor
+            return (datetime.now().timetuple().tm_yday % 3) == 0
     elif frecuencia == "semanal":
         # Solo lunes
         return datetime.now().weekday() == 0

@@ -152,7 +152,7 @@ def process_comment(snippet, comment_id, video_id, parent_id=None):
         "like_count": snippet.get("likeCount", 0),
         "published_at": published_at,
         "updated_at": snippet.get("updatedAt", published_at),
-        "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+        "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat()  # FIX: Sin +Z (ya incluye +00:00)
     }
 
 def upsert_comments(sb: Client, comments):
