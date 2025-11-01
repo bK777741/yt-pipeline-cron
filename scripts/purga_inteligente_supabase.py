@@ -26,10 +26,10 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ============================================================================
 
 PURGA_CONFIG = {
-    # Límites de storage
-    "limite_total_gb": 500,  # Supabase free tier
-    "alerta_porcentaje": 80,  # Alerta al 80% (400 GB)
-    "purga_porcentaje": 90,   # Purgar al 90% (450 GB)
+    # Límites de storage (FREE TIER = 500MB database + 1GB files = ~1.5GB total)
+    "limite_total_gb": 1.5,   # Supabase FREE tier (500MB DB + 1GB storage)
+    "alerta_porcentaje": 70,  # Alerta al 70% (1.05 GB)
+    "purga_porcentaje": 85,   # Purgar al 85% (1.27 GB) - Antes de llegar al límite
 
     # Retención de datos (qué tan viejo antes de borrar)
     "retencion_dias": {

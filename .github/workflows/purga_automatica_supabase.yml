@@ -55,12 +55,18 @@ jobs:
           echo "Ver logs arriba para detalles"
 
 # ============================================================================
-# NOTAS:
+# NOTAS - PLAN FREE (500 MB database + 1 GB storage = 1.5 GB TOTAL):
 # - Este workflow se ejecuta el primer día de cada mes
 # - Verifica el uso de storage automáticamente
-# - Solo purga si storage >= 90% (450 GB de 500 GB)
+# - Alerta al 70% (1.05 GB de 1.5 GB)
+# - Solo purga si storage >= 85% (1.27 GB de 1.5 GB)
 # - Mantiene watermarks intactos (continuidad garantizada)
 # - Conserva datos recientes (últimos 30 días NUNCA se borran)
+#
+# LÍMITES SUPABASE FREE TIER:
+# - Database: 500 MB
+# - File Storage: 1 GB
+# - TOTAL: ~1.5 GB
 #
 # EJECUCIÓN MANUAL:
 # 1. Ir a GitHub Actions → "Purga Automática Supabase"
