@@ -275,16 +275,25 @@ def fetch_videos_with_pagination(yt, channel_id, published_before, max_results):
 def upsert_videos(sb: Client, videos):
     rows = []
     for video in videos:
+        # Extraer URLs de thumbnails
+        thumbnails = video.get("thumbnails", {})
+
         rows.append({
             "video_id": video["video_id"],
             "channel_id": video["channel_id"],
-            "title": video["title"],  # Nuevo campo
-            "description": video["description"],  # Nuevo campo
+            "title": video["title"],
+            "description": video["description"],
             "hashtags": video["hashtags"],
-            "tags": video["tags"],  # Nuevo campo
+            "tags": video["tags"],
             "duration": video["duration"],
-            "published_at": video["published_at"],  # Nuevo campo
-            "imported_at": "now()"
+            "published_at": video["published_at"],
+            "imported_at": "now()",
+            # FIX 2025-11-01: Agregar thumbnails que faltaban
+            "thumbnail_default": thumbnails.get("default", {}).get("url"),
+            "thumbnail_medium": thumbnails.get("medium", {}).get("url"),
+            "thumbnail_high": thumbnails.get("high", {}).get("url"),
+            "thumbnail_standard": thumbnails.get("standard", {}).get("url"),
+            "thumbnail_maxres": thumbnails.get("maxres", {}).get("url")
         })
     sb.table("videos").upsert(rows, on_conflict=["video_id"]).execute()
 
