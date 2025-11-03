@@ -66,8 +66,9 @@ def load_env():
     region_codes = [x.strip().upper() for x in os.getenv("REGION_CODES", "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT").split(",") if x.strip()]
     allowed_langs = {x.strip().split("-")[0].lower() for x in os.getenv("ALLOWED_LANGS", "es,en,hi,pt").split(",") if x.strip()}
     long_min_seconds = int(os.getenv("LONG_MIN_SECONDS", 180))
-    max_shorts = int(os.getenv("MAX_SHORTS_PER_DAY", 20))
-    max_longs = int(os.getenv("MAX_LONGS_PER_DAY", 15))
+    # FIX 2025-11-03: Aumentar límites para mayor variedad de contenido
+    max_shorts = int(os.getenv("MAX_SHORTS_PER_DAY", 50))  # 20 → 50 (más shorts virales)
+    max_longs = int(os.getenv("MAX_LONGS_PER_DAY", 30))    # 15 → 30 (más tutoriales largos)
     pages_per_region = int(os.getenv("PAGES_PER_REGION", 1))
     
     return (
@@ -346,15 +347,16 @@ def apply_dynamic_viral_filters(items):
             vph_l.append(it["vph"])
             eng_l.append(it["engagement"])
     
-    # Calcular percentiles solo si hay datos
+    # FIX 2025-11-03: Reducir percentiles para obtener más candidatos
+    # Percentiles bajos = pasar más videos (70-80% en vez de 20-40%)
     thr = {
         "short": {
-            "vph": pct(vph_s, 80) if vph_s else 0,
-            "eng": pct(eng_s, 60) if eng_s else 0
+            "vph": pct(vph_s, 30) if vph_s else 0,  # Pasar top 70% (antes: top 20%)
+            "eng": pct(eng_s, 20) if eng_s else 0   # Pasar top 80% (antes: top 40%)
         },
         "long": {
-            "vph": pct(vph_l, 80) if vph_l else 0,
-            "eng": pct(eng_l, 60) if eng_l else 0
+            "vph": pct(vph_l, 30) if vph_l else 0,  # Pasar top 70%
+            "eng": pct(eng_l, 20) if eng_l else 0   # Pasar top 80%
         }
     }
     
