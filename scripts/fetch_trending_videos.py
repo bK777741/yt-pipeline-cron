@@ -109,6 +109,41 @@ def tokenize(text):
     return [word for word in words if word not in STOPWORDS and len(word) > 2]
 
 def build_channel_profile(sb, channel_id):
+    """
+    FIX 2025-11-03: Usar keywords de config_nicho.json en lugar de construir desde videos
+    (los videos tienen mucha basura en descripciones que contamina el perfil)
+    """
+    try:
+        # Intentar cargar keywords de config_nicho.json
+        import json
+        from pathlib import Path
+
+        config_path = Path(__file__).parent.parent / "config_nicho.json"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                keywords_oro = config.get("nicho", {}).get("keywords_oro", [])
+                keywords_alto_valor = config.get("nicho", {}).get("keywords_alto_valor", [])
+
+                # Combinar keywords oro + alto valor
+                all_keywords = set()
+                for keyword in keywords_oro + keywords_alto_valor:
+                    # Tokenizar keywords compuestas ("inteligencia artificial" → ["inteligencia", "artificial"])
+                    words = tokenize(keyword)
+                    all_keywords.update(words)
+
+                if all_keywords:
+                    print(f"[fetch_trending_videos] 📊 Perfil del canal construido desde config_nicho.json:")
+                    print(f"  - Total keywords: {len(all_keywords)}")
+                    print(f"  - Top keywords: {list(all_keywords)[:15]}...")
+                    print(f"  - Similarity threshold: 0.01 (ULTRA permisivo - solo verificar que tenga 1+ keyword)")
+
+                    return {"keywords": all_keywords, "similarity_threshold": 0.01}
+    except Exception as e:
+        print(f"[fetch_trending_videos] ⚠️ Error cargando config_nicho.json: {e}")
+
+    # Fallback: construir desde videos (método anterior)
+    print("[fetch_trending_videos] ⚠️ Fallback: construyendo perfil desde videos del canal...")
     res = sb.table("videos").select("title, description").eq("channel_id", channel_id).order("published_at", desc=True).limit(200).execute()
     videos = res.data
 
@@ -116,33 +151,17 @@ def build_channel_profile(sb, channel_id):
     words = tokenize(all_text)
 
     if not words:
-        print("[fetch_trending_videos] ⚠️ ADVERTENCIA: No se encontraron palabras del canal para construir perfil")
+        print("[fetch_trending_videos] ⚠️ ADVERTENCIA: No se encontraron palabras del canal")
         return {"keywords": set(), "similarity_threshold": 0.0}
 
     word_freq = Counter(words)
     top_words = {word for word, _ in word_freq.most_common(50)}
 
-    similarities = []
-    for video in videos:
-        text = f"{video['title']} {video.get('description', '')}"
-        video_words = set(tokenize(text))
-        if not top_words:
-            similarity = 0.0
-        else:
-            intersection = top_words & video_words
-            union = top_words | video_words
-            similarity = len(intersection) / len(union)
-        similarities.append(similarity)
-
-    similarities.sort()
-    # FIX 2025-11-03: Threshold ULTRA permisivo (percentil 1) para capturar más videos
-    threshold = similarities[int(len(similarities) * 0.01)] if similarities else 0.01
-
-    print(f"[fetch_trending_videos] 📊 Perfil del canal construido:")
+    print(f"[fetch_trending_videos] 📊 Perfil construido desde videos:")
     print(f"  - Top keywords: {list(top_words)[:10]}...")
-    print(f"  - Similarity threshold: {threshold:.3f} (percentil 1)")
+    print(f"  - Similarity threshold: 0.01")
 
-    return {"keywords": top_words, "similarity_threshold": threshold}
+    return {"keywords": top_words, "similarity_threshold": 0.01}
 
 def fetch_trending_page(yt, region, page_token=None, max_results=50):
     return yt.videos().list(
@@ -257,25 +276,26 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         union = channel_profile["keywords"] | video_words
         similarity = len(intersection) / len(union) if union else 0.0
 
-    if similarity < channel_profile["similarity_threshold"]:
-        if debug: print(f"[FILTRO] {video_id} - Similarity {similarity:.3f} < {channel_profile['similarity_threshold']:.3f}: {title}")
-        return None
-
-    # Filtrado adicional por keywords de nicho
-    # FIX 2025-11-03: Reducir min_score de 30 a 20 (MUY permisivo) para capturar más videos
+    # FIX 2025-11-03: Filtrado de nicho es OBLIGATORIO (más confiable que similarity)
+    # El filtro de similarity se usa solo como métrica informativa
     if NICHO_FILTERING_ENABLED:
+        # Reducir min_score a 15 (MUY PERMISIVO)
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
             snippet.get("categoryId"),
-            min_score=20  # Score mínimo de relevancia (20 = ULTRA permisivo)
+            min_score=15  # Score mínimo 15 (detecta casi todo tech/IA/tutoriales)
         )
         if not es_relevante:
-            # Video filtrado por keywords (gaming, retos, etc.)
-            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 20: {title}")
+            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 15: {title}")
             return None
         elif debug:
-            print(f"[PASS ✅] {video_id} - Nicho score {nicho_score}, Similarity {similarity:.3f}: {title}")
+            print(f"[PASS ✅] {video_id} - Nicho {nicho_score}, Sim {similarity:.3f}: {title}")
+    else:
+        # Fallback: usar similarity si nicho_utils no está disponible
+        if similarity < channel_profile["similarity_threshold"]:
+            if debug: print(f"[FILTRO] {video_id} - Similarity {similarity:.3f} < {channel_profile['similarity_threshold']:.3f}: {title}")
+            return None
 
     return {
         "video_id": video["id"],
