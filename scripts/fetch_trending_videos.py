@@ -134,7 +134,8 @@ def build_channel_profile(sb, channel_id):
         similarities.append(similarity)
     
     similarities.sort()
-    threshold = similarities[int(len(similarities) * 0.25)] if similarities else 0.1
+    # FIX 2025-11-03: Reducir threshold de 25% a 5% para ser más permisivo
+    threshold = similarities[int(len(similarities) * 0.05)] if similarities else 0.05
     return {"keywords": top_words, "similarity_threshold": threshold}
 
 def fetch_trending_page(yt, region, page_token=None, max_results=50):
@@ -212,40 +213,46 @@ def topic_key_from_title(title):
     t = re.sub(r"\s+", " ", t).strip()
     return " ".join(t.split()[:8])
 
-def process_video(video, region, channel_profile, allowed_langs, long_min_seconds):
+def process_video(video, region, channel_profile, allowed_langs, long_min_seconds, debug=False):
     snippet = video["snippet"]
     stats = video.get("statistics", {})
     content = video["contentDetails"]
-    
+    video_id = video["id"]
+    title = snippet.get("title", "")[:60]
+
     # DESCARTAR lives/premieres
     if (snippet.get("liveBroadcastContent") or "none") != "none":
+        if debug: print(f"[FILTRO] {video_id} - Live/Premiere: {title}")
         return None
-    
+
     # Filtrar por idioma (aceptar si no viene idioma)
     lang = (snippet.get("defaultAudioLanguage") or snippet.get("defaultLanguage") or "").split("-")[0].lower()
     if lang and lang not in allowed_langs:
+        if debug: print(f"[FILTRO] {video_id} - Idioma '{lang}': {title}")
         return None
-    
+
     # Duración y formato
     duration_sec = parse_iso8601_duration(content["duration"])
     video_format = classify_format(duration_sec, long_min_seconds)
-    
+
     # Descartar formato medium
     if video_format not in ("short", "long"):
+        if debug: print(f"[FILTRO] {video_id} - Formato '{video_format}' ({duration_sec}s): {title}")
         return None
-    
+
     # Tokenizar y calcular similitud
     text = f"{snippet['title']} {snippet.get('description', '')}"
     video_words = set(tokenize(text))
-    
+
     if not channel_profile["keywords"]:
         similarity = 0.0
     else:
         intersection = channel_profile["keywords"] & video_words
         union = channel_profile["keywords"] | video_words
         similarity = len(intersection) / len(union) if union else 0.0
-    
+
     if similarity < channel_profile["similarity_threshold"]:
+        if debug: print(f"[FILTRO] {video_id} - Similarity {similarity:.3f} < {channel_profile['similarity_threshold']:.3f}: {title}")
         return None
 
     # Filtrado adicional por keywords de nicho
@@ -259,7 +266,10 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         )
         if not es_relevante:
             # Video filtrado por keywords (gaming, retos, etc.)
+            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 30: {title}")
             return None
+        elif debug:
+            print(f"[PASS] {video_id} - Nicho score {nicho_score}: {title}")
 
     return {
         "video_id": video["id"],
@@ -333,21 +343,23 @@ def apply_dynamic_viral_filters(items):
             
     return kept, thr
 
-def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allowed_langs, long_min_seconds, needed_total):
+def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allowed_langs, long_min_seconds, needed_total, debug=False):
     agg = {}  # video_id -> item con _regions
+    total_processed = 0
     for region in region_codes:
         next_page = None
         for _ in range(pages_per_region):
             response = fetch_trending_page(yt, region, next_page)
             videos = response.get("items", [])
             next_page = response.get("nextPageToken")
-            
+
             for video in videos:
+                total_processed += 1
                 video_info = process_video(
-                    video, region, channel_profile, 
-                    allowed_langs, long_min_seconds
+                    video, region, channel_profile,
+                    allowed_langs, long_min_seconds, debug
                 )
-                
+
                 if not video_info:
                     continue
                 
@@ -363,7 +375,9 @@ def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allo
                 break
         if len(agg) >= needed_total:
             break
-            
+
+    if debug:
+        print(f"[DEBUG] Total procesados: {total_processed}, Candidatos pasados: {len(agg)}")
     return list(agg.values())
 
 def select_top_candidates(candidates, max_shorts, max_longs):
@@ -503,11 +517,14 @@ def main():
     
     # Procesar regiones con dedup y early-stop
     needed_total = (max_shorts + max_longs) * 3
+    # FIX 2025-11-03: Activar debug para ver qué videos son filtrados
+    DEBUG_MODE = os.getenv("FETCH_TRENDING_DEBUG", "false").lower() == "true"
     candidates = collect_candidates(
-        yt, region_codes, pages_per_region, 
-        channel_profile, allowed_langs, long_min_seconds, needed_total
+        yt, region_codes, pages_per_region,
+        channel_profile, allowed_langs, long_min_seconds, needed_total, DEBUG_MODE
     )
     stats["candidates"] = len(candidates)
+    print(f"[fetch_trending_videos] Candidatos iniciales: {len(candidates)}")
     
     # Aplicar filtros virales dinámicos
     kept, thr = apply_dynamic_viral_filters(candidates)

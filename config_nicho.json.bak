@@ -120,7 +120,7 @@
         "porcentaje": 5.0,
         "descripcion": "Importar subtítulos (MUY COSTOSO)",
         "prioridad": "baja",
-        "frecuencia": "diaria",
+        "frecuencia": "cada_3_dias",
         "max_videos_dia": 2,
         "nota": "Solo videos estratégicos"
       },
