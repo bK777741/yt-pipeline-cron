@@ -41,12 +41,29 @@ def init_clients(creds, supabase_url, supabase_key):
     return yt, sb
 
 def fetch_recent_videos(sb: Client):
-    threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
+    # FIX 2025-11-03: Cambiar ventana de 15 minutos a 7 días para obtener videos recientes
+    # que aún no tienen subtítulos procesados
+    threshold = datetime.now(timezone.utc) - timedelta(days=7)
+
+    # Obtener videos de los últimos 7 días que NO tienen subtítulos
     resp = sb.table("videos") \
              .select("video_id") \
-             .gte("imported_at", threshold.isoformat()) \
+             .gte("published_at", threshold.isoformat()) \
              .execute()
-    return [row["video_id"] for row in resp.data]
+
+    video_ids = [row["video_id"] for row in resp.data]
+
+    # Filtrar videos que YA tienen subtítulos
+    if video_ids:
+        existing = sb.table("captions") \
+                     .select("video_id") \
+                     .in_("video_id", video_ids) \
+                     .execute()
+        existing_ids = {row["video_id"] for row in existing.data}
+        video_ids = [vid for vid in video_ids if vid not in existing_ids]
+
+    print(f"[import_captions] Videos candidatos (últimos 7 días sin subtítulos): {len(video_ids)}")
+    return video_ids
 
 def download_caption(yt, video_id, language="es"):
     try:
