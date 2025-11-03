@@ -707,3 +707,32 @@ jobs:
           export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
           export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
           python ${{ steps.pydir.outputs.PYDIR }}/export_sync_watermarks.py
+
+  visual_purge_trending_30dias:
+    name: "VISUAL · Purgar Videos Trending > 30 Días"
+    runs-on: ubuntu-latest
+    needs: [visual_export_sync_watermarks]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'mantenimiento' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Purgar videos antiguos
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/purga_trending_30dias.py

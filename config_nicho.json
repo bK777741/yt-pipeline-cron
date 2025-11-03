@@ -141,12 +141,34 @@
         "descripcion": "Obtener videos trending filtrados",
         "prioridad": "media",
         "frecuencia": "diaria"
+      },
+
+      "fetch_shorts_search": {
+        "unidades": 340,
+        "porcentaje": 3.4,
+        "descripcion": "Búsqueda activa de shorts virales (search.list + videos.list)",
+        "prioridad": "alta",
+        "frecuencia": "cada_3_dias",
+        "max_keywords": 3,
+        "max_videos_per_keyword": 50,
+        "nota": "Ejecutar cada 3 días para lotes de 20-30 shorts"
+      },
+
+      "fetch_explosive_longs": {
+        "unidades": 150,
+        "porcentaje": 1.5,
+        "descripcion": "Búsqueda activa de videos largos explosivos",
+        "prioridad": "alta",
+        "frecuencia": "cada_3_dias",
+        "max_results": 50,
+        "min_vph": 100,
+        "nota": "Videos con crecimiento explosivo (<7 días, alto VPH)"
       }
     },
 
-    "total_planificado": 1450,
-    "margen_disponible": 8550,
-    "uso_porcentaje_objetivo": 15
+    "total_planificado": 1940,
+    "margen_disponible": 8060,
+    "uso_porcentaje_objetivo": 19.4
   },
 
   "deteccion_mina_oro": {
