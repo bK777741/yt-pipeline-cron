@@ -72,10 +72,30 @@ def main():
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
     # Control de frecuencia (ejecutar cada 3 días)
-    # FIX 2025-11-01: Pasar cliente Supabase para verificar watermarks
+    # FIX 2025-11-03: Verificar watermarks correctamente
     if QUOTA_TRACKING_ENABLED:
         if not debe_ejecutarse_hoy("import_captions", sb):
-            print("[import_captions] No debe ejecutarse hoy (frecuencia: cada 3 días)")
+            # Obtener días transcurridos para debug
+            try:
+                result = sb.table("script_execution_log") \
+                    .select("last_run") \
+                    .eq("script_name", "import_captions") \
+                    .order("last_run", desc=True) \
+                    .limit(1) \
+                    .execute()
+
+                if result.data:
+                    from datetime import timezone as tz
+                    last_run = datetime.fromisoformat(result.data[0]["last_run"].replace('Z', '+00:00'))
+                    dias = (datetime.now(tz.utc) - last_run).days
+                    print(f"[import_captions] Última ejecución: {last_run.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                    print(f"[import_captions] Días transcurridos: {dias}/3")
+                    print("[import_captions] No debe ejecutarse hoy (frecuencia: cada 3 días)")
+                else:
+                    print("[import_captions] No se encontró registro previo en script_execution_log")
+            except Exception as e:
+                print(f"[import_captions] Error verificando watermark: {e}")
+
             print("[import_captions] Saltando ejecución para ahorrar cuota")
             sys.exit(0)
 

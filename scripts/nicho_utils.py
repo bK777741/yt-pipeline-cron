@@ -431,8 +431,11 @@ def debe_ejecutarse_hoy(nombre_script: str, sb_client=None) -> bool:
                     .execute()
 
                 if result.data:
+                    from datetime import timezone as tz
                     last_run = datetime.fromisoformat(result.data[0]["last_run"].replace('Z', '+00:00'))
-                    dias_desde_ultima = (datetime.now(last_run.tzinfo) - last_run).days
+                    now_utc = datetime.now(tz.utc)
+                    dias_desde_ultima = (now_utc - last_run).days
+                    print(f"[DEBUG] {nombre_script}: última ejecución hace {dias_desde_ultima} días")
                     return dias_desde_ultima >= 3
                 else:
                     # Primera ejecución

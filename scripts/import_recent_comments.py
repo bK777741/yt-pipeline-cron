@@ -60,7 +60,9 @@ def init_clients(creds, supabase_url, supabase_key):
     return yt, sb
 
 def get_recent_videos(sb: Client, limit=200):
-    return sb.table("videos").select("video_id").order("imported_at", desc=True).limit(limit).execute()
+    # FIX 2025-11-03: Obtener videos por published_at (no imported_at) para obtener videos más recientes
+    # que probablemente tengan más comentarios activos
+    return sb.table("videos").select("video_id").order("published_at", desc=True).limit(limit).execute()
 
 def parse_iso_datetime(dt_str):
     formats = [

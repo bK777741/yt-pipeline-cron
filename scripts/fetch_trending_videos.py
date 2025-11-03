@@ -249,12 +249,13 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         return None
 
     # Filtrado adicional por keywords de nicho
+    # FIX 2025-11-03: Reducir min_score de 50 a 30 para detectar más videos relevantes
     if NICHO_FILTERING_ENABLED:
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
             snippet.get("categoryId"),
-            min_score=50  # Score mínimo de relevancia
+            min_score=30  # Score mínimo de relevancia (30 = más permisivo)
         )
         if not es_relevante:
             # Video filtrado por keywords (gaming, retos, etc.)

@@ -4,26 +4,41 @@
     "descripcion": "Canal enfocado en tutoriales de tecnología, inteligencia artificial, redes sociales y productividad digital",
 
     "keywords_oro": [
-      "tutorial", "como usar", "how to", "guia paso a paso",
-      "pc", "computadora", "laptop", "windows", "mac",
-      "inteligencia artificial", "ia", "ai", "chatgpt", "gemini",
-      "whatsapp", "facebook", "instagram", "tiktok", "telegram",
-      "app", "aplicacion", "software", "programa", "herramienta",
-      "trucos", "tips", "hack", "configurar", "instalar",
-      "review", "analisis", "mejor", "gadget", "tecnologia",
-      "smartphone", "celular", "android", "ios", "iphone",
-      "gratis", "free", "sin pagar", "descarga",
-      "productividad", "trabajo", "estudiar", "aprender",
-      "curso", "tutorial completo", "de 0 a 100",
-      "2024", "2025", "nuevo", "actualizado", "ultima version"
+      "tutorial", "como usar", "how to", "guia paso a paso", "explicado",
+      "pc", "computadora", "laptop", "windows", "windows 11", "windows 10", "mac",
+      "inteligencia artificial", "ia", "ai", "chatgpt", "gemini", "copilot", "claude",
+      "whatsapp", "facebook", "instagram", "tiktok", "telegram", "twitter", "x",
+      "app", "aplicacion", "software", "programa", "herramienta", "extension",
+      "trucos", "tips", "hack", "configurar", "instalar", "activar", "descargar",
+      "review", "analisis", "mejor", "gadget", "tecnologia", "tech",
+      "smartphone", "celular", "android", "ios", "iphone", "samsung",
+      "gratis", "free", "sin pagar", "descarga", "gratuito",
+      "productividad", "trabajo", "estudiar", "aprender", "educacion",
+      "curso", "tutorial completo", "de 0 a 100", "full course",
+      "2024", "2025", "nuevo", "actualizado", "ultima version", "novedad",
+      "office", "word", "excel", "powerpoint", "outlook", "microsoft 365",
+      "google", "gmail", "drive", "docs", "sheets", "chrome",
+      "youtube", "canal", "creador", "monetizar", "seo",
+      "editar", "crear", "diseñar", "hacer", "generar",
+      "reparar", "arreglar", "solucionar", "fix", "error", "problema",
+      "canva", "photoshop", "premiere", "capcut", "davinci",
+      "automatizar", "script", "bot", "ia para", "con ia",
+      "sin registro", "sin descargar", "online", "web",
+      "ganar dinero", "monetizar", "negocio", "emprender"
     ],
 
     "keywords_alto_valor": [
-      "ia gratis", "chatgpt español", "tutorial completo",
-      "mejor app 2025", "herramienta gratis", "truco secreto",
-      "configuracion perfecta", "optimizar pc", "acelerar",
-      "sin programas", "facil y rapido", "en 5 minutos",
-      "funciones ocultas", "trucos profesionales"
+      "ia gratis", "chatgpt español", "chatgpt gratis", "tutorial completo",
+      "mejor app 2025", "herramienta gratis", "truco secreto", "hack secreto",
+      "configuracion perfecta", "optimizar pc", "acelerar windows", "limpiar pc",
+      "sin programas", "facil y rapido", "en 5 minutos", "sin descargar nada",
+      "funciones ocultas", "trucos profesionales", "poco conocidos",
+      "office gratis", "word gratis", "excel gratis", "activar office",
+      "whatsapp trucos", "instagram trucos", "facebook trucos",
+      "arreglar error", "solucionar problema", "reparar windows",
+      "como ganar dinero", "automatizar con ia", "productividad 10x",
+      "sin marca de agua", "sin limites", "ilimitado gratis",
+      "mejor que chatgpt", "alternativa gratis", "sin registrarse"
     ],
 
     "keywords_shorts": [
