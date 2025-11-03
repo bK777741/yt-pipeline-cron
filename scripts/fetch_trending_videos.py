@@ -347,28 +347,36 @@ def apply_dynamic_viral_filters(items):
             vph_l.append(it["vph"])
             eng_l.append(it["engagement"])
     
-    # FIX 2025-11-03: Reducir percentiles para obtener más candidatos
-    # Percentiles bajos = pasar más videos (70-80% en vez de 20-40%)
+    # FIX 2025-11-03: Percentiles diferenciados para shorts vs longs
+    # SHORTS: Priorizan viralidad (VPH alto), engagement menor
+    # LONGS: Priorizan engagement/calidad, VPH menor
     thr = {
         "short": {
-            "vph": pct(vph_s, 30) if vph_s else 0,  # Pasar top 70% (antes: top 20%)
-            "eng": pct(eng_s, 20) if eng_s else 0   # Pasar top 80% (antes: top 40%)
+            "vph": pct(vph_s, 15) if vph_s else 0,  # MUY PERMISIVO: pasar top 85% de shorts
+            "eng": pct(eng_s, 40) if eng_s else 0   # Más estricto en engagement: top 60%
         },
         "long": {
-            "vph": pct(vph_l, 30) if vph_l else 0,  # Pasar top 70%
-            "eng": pct(eng_l, 20) if eng_l else 0   # Pasar top 80%
+            "vph": pct(vph_l, 40) if vph_l else 0,  # Más estricto en VPH: top 60%
+            "eng": pct(eng_l, 15) if eng_l else 0   # MUY PERMISIVO: pasar top 85% en engagement
         }
     }
     
     kept = []
-    # Filtrar SOLO short/long que pasen umbrales
+    # FIX 2025-11-03: Lógica diferenciada shorts vs longs
     for it in items:
         if it["format"] not in ("short", "long"):
             continue
         t = thr[it["format"]]
-        if it["vph"] >= t["vph"] and it["engagement"] >= t["eng"]:
-            kept.append(it)
-            
+
+        # SHORTS: Pasar si tiene VPH alto O engagement alto (más permisivo)
+        if it["format"] == "short":
+            if it["vph"] >= t["vph"] or it["engagement"] >= t["eng"]:
+                kept.append(it)
+        # LONGS: Debe tener VPH Y engagement decentes (más estricto)
+        elif it["format"] == "long":
+            if it["vph"] >= t["vph"] and it["engagement"] >= t["eng"]:
+                kept.append(it)
+
     return kept, thr
 
 def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allowed_langs, long_min_seconds, needed_total, debug=False):
