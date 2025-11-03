@@ -160,13 +160,24 @@ def process_comment(snippet, comment_id, video_id, parent_id=None):
 def upsert_comments(sb: Client, comments):
     if not comments:
         return
-    
+
     for comment in comments:
-        try:
-            # FORZADO 2025-10-31: on_conflict STRING "comment_id" NO ["comment_id"]
-            sb.table("comments").upsert(comment, on_conflict="comment_id").execute()
-        except Exception as e:
-            print(f"Error upserting comment {comment['comment_id']}: {str(e)}")
+        # Reintentar hasta 3 veces en caso de errores 502/503 (Supabase intermitente)
+        for attempt in range(3):
+            try:
+                # FORZADO 2025-10-31: on_conflict STRING "comment_id" NO ["comment_id"]
+                sb.table("comments").upsert(comment, on_conflict="comment_id").execute()
+                break  # Éxito, salir del loop de reintentos
+            except Exception as e:
+                error_str = str(e)
+                # Detectar errores temporales de Supabase/Cloudflare
+                if ('502' in error_str or '503' in error_str or 'Internal server error' in error_str) and attempt < 2:
+                    print(f"[import_recent_comments] ⚠️ Error temporal 502/503 en comment {comment['comment_id']}, reintentando ({attempt+1}/3)...")
+                    time.sleep(2)  # Esperar 2 segundos antes de reintentar
+                    continue
+                else:
+                    print(f"[import_recent_comments] ❌ Error final upserting comment {comment['comment_id']}: {error_str}")
+                    break
 
 def main():
     creds, supabase_url, supabase_key, max_videos, max_comments = load_env()

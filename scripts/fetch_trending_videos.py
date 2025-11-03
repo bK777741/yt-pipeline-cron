@@ -111,16 +111,17 @@ def tokenize(text):
 def build_channel_profile(sb, channel_id):
     res = sb.table("videos").select("title, description").eq("channel_id", channel_id).order("published_at", desc=True).limit(200).execute()
     videos = res.data
-    
+
     all_text = " ".join(f"{v['title']} {v.get('description', '')}" for v in videos)
     words = tokenize(all_text)
-    
+
     if not words:
+        print("[fetch_trending_videos] ⚠️ ADVERTENCIA: No se encontraron palabras del canal para construir perfil")
         return {"keywords": set(), "similarity_threshold": 0.0}
-    
+
     word_freq = Counter(words)
     top_words = {word for word, _ in word_freq.most_common(50)}
-    
+
     similarities = []
     for video in videos:
         text = f"{video['title']} {video.get('description', '')}"
@@ -132,10 +133,15 @@ def build_channel_profile(sb, channel_id):
             union = top_words | video_words
             similarity = len(intersection) / len(union)
         similarities.append(similarity)
-    
+
     similarities.sort()
-    # FIX 2025-11-03: Reducir threshold de 25% a 5% para ser más permisivo
-    threshold = similarities[int(len(similarities) * 0.05)] if similarities else 0.05
+    # FIX 2025-11-03: Threshold ULTRA permisivo (percentil 1) para capturar más videos
+    threshold = similarities[int(len(similarities) * 0.01)] if similarities else 0.01
+
+    print(f"[fetch_trending_videos] 📊 Perfil del canal construido:")
+    print(f"  - Top keywords: {list(top_words)[:10]}...")
+    print(f"  - Similarity threshold: {threshold:.3f} (percentil 1)")
+
     return {"keywords": top_words, "similarity_threshold": threshold}
 
 def fetch_trending_page(yt, region, page_token=None, max_results=50):
@@ -256,20 +262,20 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         return None
 
     # Filtrado adicional por keywords de nicho
-    # FIX 2025-11-03: Reducir min_score de 50 a 30 para detectar más videos relevantes
+    # FIX 2025-11-03: Reducir min_score de 30 a 20 (MUY permisivo) para capturar más videos
     if NICHO_FILTERING_ENABLED:
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
             snippet.get("categoryId"),
-            min_score=30  # Score mínimo de relevancia (30 = más permisivo)
+            min_score=20  # Score mínimo de relevancia (20 = ULTRA permisivo)
         )
         if not es_relevante:
             # Video filtrado por keywords (gaming, retos, etc.)
-            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 30: {title}")
+            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 20: {title}")
             return None
         elif debug:
-            print(f"[PASS] {video_id} - Nicho score {nicho_score}: {title}")
+            print(f"[PASS ✅] {video_id} - Nicho score {nicho_score}, Similarity {similarity:.3f}: {title}")
 
     return {
         "video_id": video["id"],
@@ -346,6 +352,17 @@ def apply_dynamic_viral_filters(items):
 def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allowed_langs, long_min_seconds, needed_total, debug=False):
     agg = {}  # video_id -> item con _regions
     total_processed = 0
+
+    # Estadísticas de filtrado
+    filter_stats = {
+        "live": 0,
+        "idioma": 0,
+        "formato": 0,
+        "similarity": 0,
+        "nicho": 0,
+        "pasaron": 0
+    }
+
     for region in region_codes:
         next_page = None
         for _ in range(pages_per_region):
@@ -362,7 +379,8 @@ def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allo
 
                 if not video_info:
                     continue
-                
+
+                filter_stats["pasaron"] += 1
                 video_id = video_info["video_id"]
                 base = agg.get(video_id)
                 if not base:
@@ -370,14 +388,21 @@ def collect_candidates(yt, region_codes, pages_per_region, channel_profile, allo
                     agg[video_id] = video_info
                 else:
                     base["_regions"].add(region)
-            
+
             if not next_page or len(agg) >= needed_total:
                 break
         if len(agg) >= needed_total:
             break
 
-    if debug:
-        print(f"[DEBUG] Total procesados: {total_processed}, Candidatos pasados: {len(agg)}")
+    print(f"\n[fetch_trending_videos] 📊 ESTADÍSTICAS DE FILTRADO:")
+    print(f"  - Total videos procesados: {total_processed}")
+    print(f"  - Videos que pasaron filtros: {len(agg)} ({(len(agg)/total_processed*100) if total_processed > 0 else 0:.1f}%)")
+    print(f"  - Regiones consultadas: {len(region_codes)}")
+
+    if debug and total_processed > 0:
+        filtrados = total_processed - filter_stats["pasaron"]
+        print(f"  - Videos descartados: {filtrados} ({(filtrados/total_processed*100):.1f}%)")
+
     return list(agg.values())
 
 def select_top_candidates(candidates, max_shorts, max_longs):

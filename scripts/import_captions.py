@@ -68,13 +68,27 @@ def fetch_recent_videos(sb: Client):
 def download_caption(yt, video_id, language="es"):
     try:
         captions = yt.captions().list(part="id", videoId=video_id).execute()
-        for item in captions.get("items", []):
+        caption_items = captions.get("items", [])
+
+        # DEBUG: Mostrar qué subtítulos están disponibles
+        if not caption_items:
+            print(f"[import_captions] ⚠️ Video {video_id}: NO tiene subtítulos disponibles")
+            return None
+
+        available_langs = [item.get("snippet", {}).get("language") for item in caption_items]
+        print(f"[import_captions] Video {video_id}: Idiomas disponibles: {available_langs}")
+
+        for item in caption_items:
             if item.get("snippet", {}).get("language") == language:
                 caption = yt.captions().download(id=item["id"]).execute()
+                print(f"[import_captions] ✅ Video {video_id}: Subtítulo '{language}' descargado ({len(caption)} bytes)")
                 return caption.decode("utf-8")
+
+        print(f"[import_captions] ⚠️ Video {video_id}: NO tiene subtítulo en '{language}' (disponibles: {available_langs})")
+        return None
     except Exception as e:
-        print(f"Error downloading caption: {e}")
-    return None
+        print(f"[import_captions] ❌ Error descargando subtítulo de {video_id}: {e}")
+        return None
 
 def upsert_caption(sb: Client, video_id, text, language="es"):
     sb.table("captions").upsert({
