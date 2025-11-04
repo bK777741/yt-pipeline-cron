@@ -2,9 +2,10 @@
 # yt-pipeline-cron
 
 **Fecha de auditoría:** 3 de Noviembre 2025
-**Versión del pipeline:** 2.2.0
-**Estado:** ✅ 100% FUNCIONAL (18/18 scripts operativos)
+**Versión del pipeline:** 2.3.0
+**Estado:** ✅ 100% FUNCIONAL (21/21 scripts operativos)
 **Repositorio:** https://github.com/bK777741/yt-pipeline-cron
+**Última actualización:** Sistema de búsqueda activa de trending + purga automática
 
 ---
 
@@ -45,12 +46,14 @@ Pipeline automatizado de **análisis competitivo y optimización de contenido pa
 
 | Métrica | Valor | Estado |
 |---------|-------|--------|
-| Scripts funcionales | 18/18 | ✅ 100% |
+| Scripts funcionales | 21/21 | ✅ 100% |
 | Videos en Supabase | 380+ | ✅ Activo |
-| Keywords nicho | 108 | ✅ Optimizado |
-| Cuota API diaria | 1,500/10,000 unidades | ✅ 15% uso |
-| Ahorro cuota API | 85% | ✅ Óptimo |
+| Keywords nicho | 149 (108 oro + 41 alto valor) | ✅ Optimizado |
+| Cuota API diaria | 1,940/10,000 unidades | ✅ 19.4% uso |
+| Ahorro cuota API | 80.6% | ✅ Óptimo |
 | Storage Supabase | 0.04% usado | ✅ Excelente |
+| **Búsqueda activa trending** | **Cada 3 días** | ✅ **NUEVO** |
+| **Purga automática** | **Diaria** | ✅ **NUEVO** |
 | Workflows activos | 2 | ✅ Funcionando |
 
 ### 🔧 Tecnologías Principales
@@ -228,7 +231,7 @@ FIN (Siguiente ejecución: +24h)
 
 ---
 
-## 3. MÓDULOS DEL PIPELINE (18 SCRIPTS) {#módulos-del-pipeline}
+## 3. MÓDULOS DEL PIPELINE (21 SCRIPTS) {#módulos-del-pipeline}
 
 ### 📥 CATEGORÍA 1: IMPORTACIÓN DE DATOS (3 módulos)
 
@@ -652,7 +655,7 @@ FIN (Siguiente ejecución: +24h)
 
 ---
 
-### 🔧 CATEGORÍA 6: UTILIDADES Y MANTENIMIENTO (3 módulos)
+### 🔧 CATEGORÍA 6: UTILIDADES Y MANTENIMIENTO (6 módulos)
 
 #### 6.1 `nicho_utils.py`
 
@@ -731,6 +734,109 @@ FIN (Siguiente ejecución: +24h)
 
 **Tablas Supabase:**
 - 📖 **LEE:** `script_execution_log`
+
+---
+
+#### 6.4 `fetch_shorts_search.py` ✨ **NUEVO 2025-11-03**
+
+**Propósito:** Búsqueda activa de shorts virales del nicho usando YouTube Search API.
+
+**Funcionalidad:**
+- **Keywords estratégicas:** "chatgpt trucos", "windows tutorial", "ia gratis"
+- Busca shorts (≤60s) de los últimos 30 días
+- Máximo 50 resultados por keyword
+- **Deduplicación estricta:** Verifica `video_trending` + `videos`
+- **Filtro de nicho:** Score mínimo 15/100
+- **Watermark:** Registra ejecución en `script_execution_log`
+- **Frecuencia:** Cada 3 días (configurable)
+
+**Tablas Supabase:**
+- ✍️ **ESCRIBE:** `video_trending`, `script_execution_log`
+- 📖 **LEE:** `video_trending`, `videos` (deduplicación)
+
+**API YouTube:**
+- `search().list()` - 100 unidades × 3 keywords = 300 unidades
+- `videos().list()` - 1 unidad × ~40 videos = 40 unidades
+- **Total:** ~340 unidades/ejecución
+
+**Control de cuota:** Tracking con `nicho_utils.registrar_uso_cuota()`
+
+**Resultado esperado:** 20-30 shorts nuevos del nicho por lote
+
+**Configuración:**
+```python
+SEARCH_KEYWORDS = ["chatgpt trucos", "windows tutorial", "ia gratis"]
+MAX_RESULTS_PER_KEYWORD = 50
+MIN_NICHO_SCORE = 15
+```
+
+---
+
+#### 6.5 `fetch_explosive_longs.py` ✨ **NUEVO 2025-11-03**
+
+**Propósito:** Búsqueda activa de videos largos con crecimiento explosivo.
+
+**Funcionalidad:**
+- **Keyword genérica:** "tutorial tech 2025"
+- Busca videos >180s de los últimos 7 días
+- **Filtro explosividad:** Mínimo 100 VPH (views per hour)
+- **Deduplicación:** Verifica duplicados antes de insertar
+- **Filtro de nicho:** Score mínimo 15/100
+- **Frecuencia:** Cada 3 días
+
+**Tablas Supabase:**
+- ✍️ **ESCRIBE:** `video_trending`, `script_execution_log`
+- 📖 **LEE:** `video_trending`, `videos` (deduplicación)
+
+**API YouTube:**
+- `search().list()` - 100 unidades
+- `videos().list()` - 1 unidad × ~50 videos = 50 unidades
+- **Total:** ~150 unidades/ejecución
+
+**Resultado esperado:** 10-15 videos largos explosivos por lote
+
+**Configuración:**
+```python
+SEARCH_KEYWORD = "tutorial tech 2025"
+MAX_RESULTS = 50
+MIN_NICHO_SCORE = 15
+MIN_DURATION_SECONDS = 180
+MIN_VPH = 100  # Views per hour mínimo
+```
+
+---
+
+#### 6.6 `purga_trending_30dias.py` ✨ **NUEVO 2025-11-03**
+
+**Propósito:** Purga automática de videos trending mayores a 30 días (contenido fresco).
+
+**Funcionalidad:**
+- **Ventana de retención:** Solo últimos 30 días
+- Elimina videos de `video_trending` con `published_at < NOW() - 30 días`
+- **Purga datos huérfanos:** Captions de videos que ya no existen
+- **Estadísticas:** Muestra videos eliminados y espacio liberado
+- **Frecuencia:** Diaria (ligero, sin costo API)
+
+**Tablas Supabase:**
+- ✍️ **BORRA:** `video_trending`, `captions` (huérfanos)
+- 📖 **LEE:** `video_trending`, `videos`, `captions`
+
+**API YouTube:** 0 unidades (solo operaciones en Supabase)
+
+**Beneficios:**
+- Mantiene solo contenido trending actual
+- Libera ~90% de storage en Supabase
+- Optimiza consultas (menos registros)
+
+**Configuración:**
+```python
+RETENTION_DAYS = 30  # Solo últimos 30 días
+```
+
+**Resultado esperado:**
+- Videos eliminados: Variable según volumen
+- Primera ejecución: Limpia todo el histórico > 30 días
+- Ejecuciones posteriores: Mantenimiento incremental
 
 ---
 
@@ -1283,6 +1389,7 @@ AUTO-NICHO:
 MANTENIMIENTO:
   - visual_purge_buffer → purge_buffer.py
   - visual_export_sync_watermarks → export_sync_watermarks.py
+  - visual_purge_trending_30dias → purga_trending_30dias.py ✨ NUEVO
 ```
 
 **Características:**
@@ -1303,6 +1410,48 @@ MANTENIMIENTO:
 - Manual: `workflow_dispatch`
 
 **Función:** Similar a pipeline_visual.yml pero ejecuta automáticamente todos los pasos.
+
+---
+
+#### Workflow: `search_trending_every_3days.yml` ✨ **NUEVO 2025-11-03**
+
+**Propósito:** Búsqueda activa de contenido trending (shorts + longs) + purga automática.
+
+**Trigger:**
+- Cron: `0 6 */3 * *` (06:00 UTC cada 3 días)
+- Manual: `workflow_dispatch`
+
+**Jobs:**
+
+```yaml
+1. search_shorts → fetch_shorts_search.py
+   - Busca 20-30 shorts virales del nicho
+   - Keywords: "chatgpt trucos", "windows tutorial", "ia gratis"
+   - Costo: 340 unidades API
+   - Retry: 3 intentos, 30s delay
+
+2. search_explosive_longs → fetch_explosive_longs.py (depends on search_shorts)
+   - Busca 10-15 videos largos explosivos (>100 VPH)
+   - Keyword: "tutorial tech 2025"
+   - Costo: 150 unidades API
+   - Retry: 3 intentos, 30s delay
+
+3. purge_old_trending → purga_trending_30dias.py (depends on search_shorts, search_explosive_longs)
+   - Purga videos > 30 días de video_trending
+   - Purga datos huérfanos (captions)
+   - Costo: 0 unidades API
+```
+
+**Características:**
+- **Automático:** Cada 3 días (días 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31 del mes)
+- **Secuencial:** Jobs se ejecutan en orden con `needs`
+- **Retry logic:** 3 intentos con nick-invision/retry@v3
+- **Deduplicación:** Verifica duplicados en video_trending + videos
+- **Frecuencia configurable:** Control con watermarks en script_execution_log
+
+**Costo total por ejecución:** 490 unidades API (340 shorts + 150 longs)
+
+**Costo mensual:** ~4,900 unidades (10 ejecuciones × 490)
 
 ---
 
