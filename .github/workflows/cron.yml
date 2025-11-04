@@ -728,7 +728,7 @@ jobs:
   # PASO 10: ESCANEAR COMPETENCIA (AUTO-NICHO)
   # =====================================================================================
   scan_competencia_auto_nicho:
-    name: "PASO 10: Auto-Nicho / Escanear Competencia (01:30 Lima)"
+    name: "PASO 11: Auto-Nicho / Escanear Competencia (01:30 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'scan_competencia_auto_nicho')) ||
@@ -811,7 +811,7 @@ jobs:
   # PASO 11: MANTENER MÉTRICAS
   # =====================================================================================
   maint_metrics:
-    name: "PASO 11: Mantener Métricas (01:40 Lima)"
+    name: "PASO 12: Mantener Métricas (01:40 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'maint_metrics')) ||
@@ -900,7 +900,7 @@ jobs:
   # PASO 12: OBTENER ANALÍTICAS DE VIDEOS
   # =====================================================================================
   fetch_video_analytics:
-    name: "PASO 12: Obtener Analíticas (01:50 Lima)"
+    name: "PASO 13: Obtener Analíticas (01:50 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_video_analytics')) ||
@@ -989,7 +989,7 @@ jobs:
   # PASO 13: CALCULAR HORARIO DE PUBLICACIÓN
   # =====================================================================================
   compute_posting_schedule:
-    name: "PASO 13: Calcular Horario de Publicación (02:00 Lima)"
+    name: "PASO 15: Calcular Horario de Publicación (02:00 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'compute_posting_schedule')) ||
@@ -1075,7 +1075,7 @@ jobs:
   # PASO 14: OBTENER MÉTRICAS DE MONETIZACIÓN
   # =====================================================================================
   fetch_monetization_metrics:
-    name: "PASO 14: Obtener Métricas de Monetización (02:10 Lima)"
+    name: "PASO 16: Obtener Métricas de Monetización (02:10 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_monetization_metrics')) ||
@@ -1164,7 +1164,7 @@ jobs:
   # PASO 15: OBTENER VIDEOS EN TENDENCIA
   # =====================================================================================
   fetch_trending_videos:
-    name: "PASO 15: Obtener Videos en Tendencia (02:20 Lima)"
+    name: "PASO 17: Obtener Videos en Tendencia (02:20 Lima)"
     runs-on: ubuntu-latest
     continue-on-error: true
     if: |
@@ -1266,7 +1266,7 @@ jobs:
   # PASO 16: OBTENER TENDENCIAS DE BÚSQUEDA
   # =====================================================================================
   fetch_search_trends:
-    name: "PASO 16: Obtener Tendencias de Búsqueda (02:30 Lima)"
+    name: "PASO 19: Obtener Tendencias de Búsqueda (02:30 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == 'fetch_search_trends' || inputs.only == '')) ||
@@ -1358,7 +1358,7 @@ jobs:
   # PASO 17: PURGAR BUFFER
   # =====================================================================================
   purge_buffer:
-    name: "PASO 17: Purgar Buffer (02:40 Lima)"
+    name: "PASO 20: Purgar Buffer (02:40 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'purge_buffer')) ||
@@ -1436,7 +1436,7 @@ jobs:
   # PASO 18: EXPORTAR SYNC WATERMARKS
   # =====================================================================================
   export_sync_watermarks:
-    name: "PASO 18: Exportar Sync Watermarks (02:50 Lima)"
+    name: "PASO 21: Exportar Sync Watermarks (02:50 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'export_sync_watermarks')) ||
@@ -1565,7 +1565,7 @@ jobs:
           key: build-channel-profile-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   unified_analytics:
-    name: "PASO 13: Analytics Unificado (01:45 Lima)"
+    name: "PASO 14: Analytics Unificado (01:45 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'unified_analytics')) ||
@@ -1621,7 +1621,7 @@ jobs:
           key: unified-analytics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   detect_hidden_gems:
-    name: "PASO 16: Detectar Hidden Gems (02:25 Lima)"
+    name: "PASO 18: Detectar Hidden Gems (02:25 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'detect_hidden_gems')) ||
@@ -1677,7 +1677,7 @@ jobs:
           key: detect-hidden-gems-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
 
   refine_trending_with_niche:
-    name: "PASO 17: Refinar Trending con Nicho (02:28 Lima)"
+    name: "PASO 22: Refinar Trending con Nicho (02:28 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'refine_trending_with_niche')) ||
