@@ -188,14 +188,25 @@
         "prioridad": "media",
         "frecuencia": "semanal",
         "nota": "FIX 2025-11-04: Renombrado de fetch_youtube_policies. Web scraping, 0 cuota API"
+      },
+
+      "detect_hidden_gems": {
+        "unidades": 400,
+        "porcentaje": 4.0,
+        "descripcion": "Detectar MINAS DE ORO: canales pequeños (<50k subs) con videos explosivos (ratio >100x)",
+        "prioridad": "crítica",
+        "frecuencia": "diaria",
+        "max_keywords": 4,
+        "max_videos_per_keyword": 50,
+        "nota": "FIX 2025-11-04: NUEVO - La verdadera mina de oro son canales pequeños con explosión viral"
       }
     },
 
-    "total_planificado_diario": 2270,
-    "margen_disponible": 7730,
-    "uso_porcentaje_objetivo": 22.7,
+    "total_planificado_diario": 2670,
+    "margen_disponible": 7330,
+    "uso_porcentaje_objetivo": 26.7,
 
-    "nota_importante": "FIX 2025-11-04: Consolidación completada. unified_analytics reemplaza 2 scripts con 0 cuota API. import_comments aumentado para más datos. MARGEN: 77.3% disponible para expansión futura."
+    "nota_importante": "FIX 2025-11-04: Consolidación + Detección de hidden gems. unified_analytics (0 API), detect_hidden_gems (400). MARGEN: 73.3% disponible."
   },
 
   "deteccion_mina_oro": {
