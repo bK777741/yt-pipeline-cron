@@ -72,15 +72,16 @@ on:
     - cron: "0 6 * * *"    # 7. reconcile_comments (01:00 Lima)
     - cron: "10 6 * * *"   # 8. fetch_comment_sentiment (01:10 Lima)
     - cron: "20 6 * * *"   # 9. build_niche_profile (01:20 Lima)
-    - cron: "30 6 * * *"   # 10. scan_competencia_auto_nicho (01:30 Lima)
-    - cron: "40 6 * * *"   # 11. maint_metrics (01:40 Lima)
-    - cron: "50 6 * * *"   # 12. fetch_video_analytics (01:50 Lima)
-    - cron: "0 7 * * *"    # 13. compute_posting_schedule (02:00 Lima)
-    - cron: "10 7 * * *"   # 14. fetch_monetization_metrics (02:10 Lima)
+    - cron: "25 6 * * *"   # 10. build_channel_profile (01:25 Lima) ← NUEVO
+    - cron: "30 6 * * *"   # 11. scan_competencia_auto_nicho (01:30 Lima)
+    - cron: "40 6 * * *"   # 12. maint_metrics (01:40 Lima)
+    - cron: "45 6 * * *"   # 13. unified_analytics (01:45 Lima) ← NUEVO (reemplaza fetch_video_analytics + fetch_monetization_metrics)
+    - cron: "0 7 * * *"    # 14. compute_posting_schedule (02:00 Lima)
     - cron: "20 7 * * *"   # 15. fetch_trending_videos (02:20 Lima)
-    - cron: "30 7 * * *"   # 16. fetch_search_trends (02:30 Lima)
-    - cron: "40 7 * * *"   # 17. purge_buffer (02:40 Lima)
-    - cron: "50 7 * * *"   # 18. export_sync_watermarks (02:50 Lima)
+    - cron: "25 7 * * *"   # 16. detect_hidden_gems (02:25 Lima) ← NUEVO
+    - cron: "30 7 * * *"   # 17. fetch_search_trends (02:30 Lima)
+    - cron: "40 7 * * *"   # 18. purge_buffer (02:40 Lima)
+    - cron: "50 7 * * *"   # 19. export_sync_watermarks (02:50 Lima)
 
 jobs:
   # =====================================================================================
@@ -1494,3 +1495,180 @@ jobs:
         with:
           path: .checkpoint/export_sync_watermarks
           key: export-sync-watermarks-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+
+  # =====================================================================================
+  # NUEVOS JOBS AGREGADOS 2025-11-04
+  # =====================================================================================
+
+  build_channel_profile:
+    name: "PASO 10: Construir Perfil del Canal (01:25 Lima)"
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'build_channel_profile')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '25 6 * * *')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
+      - name: Instalar dependencias (incluyendo ML)
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día Lima)
+        id: slot
+        run: echo "SLOT=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/build_channel_profile
+          key: build-channel-profile-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido este slot hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "build_channel_profile ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/build_channel_profile.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/build_channel_profile
+          key: build-channel-profile-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+
+  unified_analytics:
+    name: "PASO 13: Analytics Unificado (01:45 Lima)"
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'unified_analytics')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '45 6 * * *')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día Lima)
+        id: slot
+        run: echo "SLOT=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/unified_analytics
+          key: unified-analytics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido este slot hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "unified_analytics ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/unified_analytics.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/unified_analytics
+          key: unified-analytics-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+
+  detect_hidden_gems:
+    name: "PASO 16: Detectar Hidden Gems (02:25 Lima)"
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'detect_hidden_gems')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '25 7 * * *')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día Lima)
+        id: slot
+        run: echo "SLOT=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/detect_hidden_gems
+          key: detect-hidden-gems-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido este slot hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "detect_hidden_gems ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/detect_hidden_gems.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/detect_hidden_gems
+          key: detect-hidden-gems-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
