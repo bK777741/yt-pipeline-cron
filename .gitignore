@@ -1,10 +1,38 @@
+# ARCHIVOS DE CREDENCIALES - NUNCA SUBIR
 .env
 .env.local
-credentials/*.json
-credentials/.env.local
+*.env
+
+# CARPETAS COMPLETAS DE CREDENCIALES - BLOQUEAR TODO
+credentials/
+cartas credenciales/
+tokens/
+secrets/
+
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+*.json.local
+*_secrets.json
+*_credentials.json
+client_secret*.json
+oauth_token*.json
+
+# PYTHON
 pycache/
 *.pyc
 *.pyo
 *.pyd
 *.log
 .Python
+
+# ARCHIVOS TEMPORALES
+nul
+*.tmp
+*.bak
+
+# AUDITORÍAS Y DOCUMENTOS LOCALES (opcional - descomentar si es privado)
+# AUDITORIA_*.md
+# CHECKLIST_*.md
+# RESUMEN_*.md
+# QUICKSTART_*.md
+# *_COMPLETA.sql
+# QUERIES_*.sql
