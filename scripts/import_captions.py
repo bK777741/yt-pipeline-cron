@@ -41,15 +41,37 @@ def init_clients(creds, supabase_url, supabase_key):
     return yt, sb
 
 def fetch_recent_videos(sb: Client):
-    # FIX 2025-11-03: Cambiar ventana de 15 minutos a 7 días para obtener videos recientes
-    # que aún no tienen subtítulos procesados
-    threshold = datetime.now(timezone.utc) - timedelta(days=7)
+    # FIX 2025-11-04: EXCEPCIÓN HOY - Procesar TODOS los videos sin importar fecha
+    # para entrenar el modelo de aprendizaje en GUI.
+    # Después de hoy, volverá a la lógica normal (cada 7 días)
 
-    # Obtener videos de los últimos 7 días que NO tienen subtítulos
-    resp = sb.table("videos") \
-             .select("video_id") \
-             .gte("published_at", threshold.isoformat()) \
-             .execute()
+    # VERIFICAR SI ES LA PRIMERA EJECUCIÓN (no hay watermark)
+    try:
+        watermark_check = sb.table("script_execution_log") \
+            .select("last_run") \
+            .eq("script_name", "import_captions") \
+            .order("last_run", desc=True) \
+            .limit(1) \
+            .execute()
+
+        primera_ejecucion = len(watermark_check.data) == 0
+    except:
+        primera_ejecucion = True
+
+    if primera_ejecucion:
+        print("[import_captions] ⚠️ PRIMERA EJECUCIÓN - Procesando TODOS los videos del canal")
+        # Obtener TODOS los videos sin filtro de fecha
+        resp = sb.table("videos") \
+                 .select("video_id") \
+                 .order("published_at", desc=True) \
+                 .execute()
+    else:
+        # Lógica normal: últimos 7 días
+        threshold = datetime.now(timezone.utc) - timedelta(days=7)
+        resp = sb.table("videos") \
+                 .select("video_id") \
+                 .gte("published_at", threshold.isoformat()) \
+                 .execute()
 
     video_ids = [row["video_id"] for row in resp.data]
 
@@ -62,7 +84,11 @@ def fetch_recent_videos(sb: Client):
         existing_ids = {row["video_id"] for row in existing.data}
         video_ids = [vid for vid in video_ids if vid not in existing_ids]
 
-    print(f"[import_captions] Videos candidatos (últimos 7 días sin subtítulos): {len(video_ids)}")
+    if primera_ejecucion:
+        print(f"[import_captions] Videos candidatos (TODOS sin subtítulos): {len(video_ids)}")
+    else:
+        print(f"[import_captions] Videos candidatos (últimos 7 días sin subtítulos): {len(video_ids)}")
+
     return video_ids
 
 def download_caption(yt, video_id, language="es"):
@@ -132,10 +158,24 @@ def main():
 
     video_ids = fetch_recent_videos(sb)
 
-    # Limitar a MAX_VIDEOS_PER_DAY para ahorrar cuota
-    if len(video_ids) > MAX_VIDEOS_PER_DAY:
-        print(f"[import_captions] Limitando a {MAX_VIDEOS_PER_DAY} videos (de {len(video_ids)} disponibles)")
-        video_ids = video_ids[:MAX_VIDEOS_PER_DAY]
+    # FIX 2025-11-04: En primera ejecución, procesar hasta 50 videos para entrenar modelo
+    try:
+        watermark_check = sb.table("script_execution_log") \
+            .select("last_run") \
+            .eq("script_name", "import_captions") \
+            .order("last_run", desc=True) \
+            .limit(1) \
+            .execute()
+        primera_ejecucion = len(watermark_check.data) == 0
+    except:
+        primera_ejecucion = True
+
+    limit = 50 if primera_ejecucion else MAX_VIDEOS_PER_DAY
+
+    # Limitar según si es primera ejecución o no
+    if len(video_ids) > limit:
+        print(f"[import_captions] Limitando a {limit} videos (de {len(video_ids)} disponibles)")
+        video_ids = video_ids[:limit]
 
     # Tracking de cuota API
     api_calls = 0

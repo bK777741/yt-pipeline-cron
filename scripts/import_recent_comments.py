@@ -50,8 +50,9 @@ def load_env():
         token_uri="https://oauth2.googleapis.com/token",
     )
     
-    max_videos = _int_env("MAX_VIDEOS_PER_RUN", 50)
-    max_comments = _int_env("MAX_COMMENTS_PER_VIDEO", 500)
+    # FIX 2025-11-04: Aumentar límites para obtener más comentarios
+    max_videos = _int_env("MAX_VIDEOS_PER_RUN", 100)  # 50 → 100
+    max_comments = _int_env("MAX_COMMENTS_PER_VIDEO", 1000)  # 500 → 1000
     return creds, supabase_url, supabase_key, max_videos, max_comments
 
 def init_clients(creds, supabase_url, supabase_key):
@@ -59,8 +60,9 @@ def init_clients(creds, supabase_url, supabase_key):
     sb: Client = create_client(supabase_url, supabase_key)
     return yt, sb
 
-def get_recent_videos(sb: Client, limit=200):
-    # FIX 2025-11-03: Obtener videos por published_at (no imported_at) para obtener videos más recientes
+def get_recent_videos(sb: Client, limit=500):
+    # FIX 2025-11-04: Aumentar límite de 200 → 500 para obtener más comentarios
+    # Obtener videos por published_at (no imported_at) para obtener videos más recientes
     # que probablemente tengan más comentarios activos
     return sb.table("videos").select("video_id").order("published_at", desc=True).limit(limit).execute()
 
