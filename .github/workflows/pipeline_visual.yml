@@ -104,7 +104,7 @@ jobs:
   visual_import_recent_comments:
     name: "VISUAL · PASO 2b: Importar Comentarios Recientes"
     runs-on: ubuntu-latest
-    needs: [visual_import_captions]
+    needs: [visual_import_daily]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
     steps:
       - name: Checkout code
@@ -138,7 +138,7 @@ jobs:
   visual_detect_thumbnail_objects:
     name: "VISUAL · PASO 2c: Detectar Objetos en Thumbnails"
     runs-on: ubuntu-latest
-    needs: [visual_import_recent_comments]
+    needs: [visual_import_daily]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
     steps:
       - name: Checkout code
@@ -168,7 +168,7 @@ jobs:
   visual_extract_thumbnail_text:
     name: "VISUAL · PASO 2d: Extraer Texto de Thumbnails"
     runs-on: ubuntu-latest
-    needs: [visual_detect_thumbnail_objects]
+    needs: [visual_import_daily]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
     steps:
       - name: Checkout code
@@ -203,7 +203,7 @@ jobs:
   visual_convert_captions_to_script:
     name: "VISUAL · PASO 3a: Convertir Subtítulos a Guion"
     runs-on: ubuntu-latest
-    needs: [visual_extract_thumbnail_text]
+    needs: [visual_import_captions, visual_import_recent_comments, visual_detect_thumbnail_objects, visual_extract_thumbnail_text]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'core_1_a_4' }}
     steps:
       - name: Checkout code
@@ -331,7 +331,7 @@ jobs:
   visual_scan_competencia_auto_nicho:
     name: "VISUAL · Auto-Nicho: Escanear Competencia"
     runs-on: ubuntu-latest
-    needs: [visual_build_niche_profile]
+    needs: [visual_build_niche_profile, visual_build_channel_profile]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'autonicho' }}
     steps:
       - name: Checkout code
@@ -416,7 +416,7 @@ jobs:
   visual_fetch_video_analytics:
     name: "VISUAL · PASO 5b: Obtener Analíticas de Video"
     runs-on: ubuntu-latest
-    needs: [visual_maint_metrics]
+    needs: [visual_scan_competencia_auto_nicho]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
     steps:
       - name: Checkout code
@@ -462,7 +462,7 @@ jobs:
   visual_compute_posting_schedule:
     name: "VISUAL · PASO 5c: Calcular Horario de Publicación"
     runs-on: ubuntu-latest
-    needs: [visual_fetch_video_analytics]
+    needs: [visual_fetch_video_analytics, visual_unified_analytics]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
     steps:
       - name: Checkout code
@@ -580,7 +580,7 @@ jobs:
   visual_refine_trending_with_niche:
     name: "VISUAL · PASO 5e.1: Refinar Tendencias con Nicho"
     runs-on: ubuntu-latest
-    needs: [visual_fetch_trending_videos]
+    needs: [visual_fetch_trending_videos, visual_detect_hidden_gems]
     if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
     steps:
       - name: Checkout code
@@ -736,3 +736,108 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python ${{ steps.pydir.outputs.PYDIR }}/purga_trending_30dias.py
+
+  # =====================================================================================
+  # NUEVOS JOBS AGREGADOS 2025-11-04
+  # =====================================================================================
+
+  visual_build_channel_profile:
+    name: "VISUAL · PASO 10: Construir Perfil del Canal"
+    runs-on: ubuntu-latest
+    needs: [visual_build_niche_profile]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'autonicho' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/torch
+            ~/.cache/huggingface
+            ~/.cache/sentence-transformers
+          key: ${{ runner.os }}-model-cache-${{ hashFiles('requirements.txt') }}-v2
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/build_channel_profile.py
+
+  visual_unified_analytics:
+    name: "VISUAL · PASO 14: Analytics Unificado"
+    runs-on: ubuntu-latest
+    needs: [visual_maint_metrics]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/unified_analytics.py
+
+  visual_detect_hidden_gems:
+    name: "VISUAL · PASO 18: Detectar Hidden Gems"
+    runs-on: ubuntu-latest
+    needs: [visual_fetch_trending_videos]
+    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: Run
+        env:
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python ${{ steps.pydir.outputs.PYDIR }}/detect_hidden_gems.py
