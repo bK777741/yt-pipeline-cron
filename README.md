@@ -1,4 +1,4 @@
-# Proyecto de Automatización y Análisis para YouTube
+# Proyecto de Automatización y Análisis para YT
 
 ---
 
