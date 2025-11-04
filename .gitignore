@@ -1,13 +1,20 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# POLÍTICA DE REPOSITORIO: SOLO ACTUALIZAR ARCHIVOS EXISTENTES
+# NUNCA SUBIR ARCHIVOS NUEVOS - TODO NUEVO SE QUEDA LOCAL
+# ═══════════════════════════════════════════════════════════════════════════
+
 # ARCHIVOS DE CREDENCIALES - NUNCA SUBIR
 .env
 .env.local
 *.env
+.env.*
 
 # CARPETAS COMPLETAS DE CREDENCIALES - BLOQUEAR TODO
 credentials/
 cartas credenciales/
 tokens/
 secrets/
+keys/
 
 # ARCHIVOS DE CONFIGURACIÓN SENSIBLES
 *.json.local
@@ -18,28 +25,98 @@ oauth_token*.json
 
 # PYTHON
 pycache/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.log
 .Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 
 # ARCHIVOS TEMPORALES
 nul
 *.tmp
 *.bak
+*.swp
+*.swo
+*~
 
-# AUDITORÍAS Y DOCUMENTOS LOCALES - NUNCA SUBIR AL PÚBLICO
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCUMENTOS Y ARCHIVOS INTERNOS - MANTENER 100% LOCAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+# AUDITORÍAS Y DOCUMENTOS LOCALES
 AUDITORIA_*.md
 CHECKLIST_*.md
 RESUMEN_*.md
 QUICKSTART_*.md
-*_COMPLETA.sql
-QUERIES_*.sql
+CONTEXTO_*.md
+NOTAS_*.md
+TODO_*.md
+PLAN_*.md
 README-local.md
 auditoria_github.md
+contexto_completo.md
 
-# ARCHIVOS SQL DE MIGRACIÓN - MANTENER LOCAL
+# ARCHIVOS SQL - TODOS BLOQUEADOS
+*.sql
 MIGRACION_*.sql
 ALTER_*.sql
 CREATE_*.sql
+QUERIES_*.sql
+*_COMPLETA.sql
+SQL_*.sql
+SQL_*.txt
+
+# ARCHIVOS DE DATOS Y ANÁLISIS
+*.csv
+*.xlsx
+*.xls
+*.json
+!config_nicho.json
+!scripts/policy_urls.json
+
+# BACKUPS Y VERSIONES
+*.bak
+*.backup
+*.old
+*_backup.*
+*_old.*
+*.v[0-9]*
+
+# SCREENSHOTS Y IMÁGENES
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.svg
+
+# ARCHIVOS DE TEXTO VARIOS
+*.txt
+!requirements.txt
+
+# ARCHIVOS DE CONFIGURACIÓN LOCAL
+config_local.*
+settings_local.*
+.vscode/
+.idea/
+*.sublime-*
+
+# CUALQUIER ARCHIVO EN RAÍZ QUE NO ESTÉ EN LA LISTA BLANCA
+/*
+!.github/
+!.gitignore
+!README.md
+!config_nicho.json
+!requirements.txt
+!scripts/
+
+# DENTRO DE SCRIPTS - BLOQUEAR ARCHIVOS NUEVOS
+scripts/*
+!scripts/*.py
+!scripts/policy_urls.json
