@@ -103,8 +103,16 @@ def save_profile(centroids, video_ids):
             'built_from': metadata
         })
     
-    logging.info(f"Haciendo upsert de {len(data)} perfiles de centroides en 'channel_profile_embeddings'...")
-    supabase.table('channel_profile_embeddings').upsert(data, on_conflict='kind').execute()
+    logging.info(f"Insertando {len(data)} perfiles de centroides en 'channel_profile_embeddings'...")
+    # Primero eliminar perfiles existentes de kmeans
+    try:
+        supabase.table('channel_profile_embeddings').delete().like('kind', 'kmeans:%').execute()
+        logging.info("Perfiles kmeans anteriores eliminados")
+    except Exception as e:
+        logging.warning(f"No se pudieron eliminar perfiles anteriores: {e}")
+
+    # Insertar nuevos perfiles
+    supabase.table('channel_profile_embeddings').insert(data).execute()
 
 def main():
     """Función principal para construir y guardar el perfil del canal."""

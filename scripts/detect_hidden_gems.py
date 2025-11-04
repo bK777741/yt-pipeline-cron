@@ -267,7 +267,7 @@ def analyze_hidden_gems(yt, video_ids):
 
         # Filtrar por relevancia al nicho (si está habilitado)
         if NICHO_FILTERING_ENABLED:
-            nicho_score = es_video_relevante(
+            es_relevante, nicho_score = es_video_relevante(
                 snippet.get("title", ""),
                 snippet.get("description", ""),
                 snippet.get("tags", [])
