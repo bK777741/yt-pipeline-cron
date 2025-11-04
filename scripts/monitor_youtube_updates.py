@@ -88,12 +88,42 @@ def save_policy(supabase, url: str, category: str, content_text: str):
         print(f"❌ upsert EXCEPTION {url}: {e}")
 
 def load_policy_urls():
+    """
+    Carga URLs de políticas Y páginas de nuevas features de YouTube.
+    FIX 2025-11-04: Expandido para monitorear features como A/B testing de títulos/thumbnails
+    """
     import os, json, re, pathlib
     p = pathlib.Path("scripts/policy_urls.json")
+
+    # URLs base de políticas
+    base_urls = []
     if p.exists():
-        return [u.strip() for u in json.loads(p.read_text(encoding="utf-8")) if isinstance(u, str) and u.strip()]
-    raw = os.getenv("POLICY_URLS", "")
-    return [s.strip() for s in re.split(r"[\s,]+", raw) if s.strip()]
+        base_urls = [u.strip() for u in json.loads(p.read_text(encoding="utf-8")) if isinstance(u, str) and u.strip()]
+    else:
+        raw = os.getenv("POLICY_URLS", "")
+        base_urls = [s.strip() for s in re.split(r"[\s,]+", raw) if s.strip()]
+
+    # NUEVO: URLs de features y actualizaciones
+    feature_urls = [
+        # A/B Testing de títulos y thumbnails
+        "https://support.google.com/youtube/answer/12563084?hl=es",  # Test & Compare
+
+        # Creator Studio updates
+        "https://support.google.com/youtube/answer/9012010?hl=es",   # YouTube Studio features
+
+        # Algoritmo y recomendaciones
+        "https://support.google.com/youtube/answer/7239739?hl=es",   # How search works
+        "https://support.google.com/youtube/answer/6002784?hl=es",   # Recommendation system
+
+        # Monetización updates
+        "https://support.google.com/youtube/answer/72857?hl=es",     # Advertiser-friendly content
+        "https://support.google.com/youtube/answer/9598778?hl=es",   # Shorts monetization
+
+        # Analytics updates
+        "https://support.google.com/youtube/answer/9002587?hl=es",   # YouTube Analytics
+    ]
+
+    return base_urls + feature_urls
 
 def _clean_base_url(raw: str) -> str:
     # Quita CR/LF y espacios, remueve barras finales, añade https:// si falta
