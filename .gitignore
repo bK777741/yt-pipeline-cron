@@ -29,10 +29,17 @@ nul
 *.tmp
 *.bak
 
-# AUDITORÍAS Y DOCUMENTOS LOCALES (opcional - descomentar si es privado)
-# AUDITORIA_*.md
-# CHECKLIST_*.md
-# RESUMEN_*.md
-# QUICKSTART_*.md
-# *_COMPLETA.sql
-# QUERIES_*.sql
+# AUDITORÍAS Y DOCUMENTOS LOCALES - NUNCA SUBIR AL PÚBLICO
+AUDITORIA_*.md
+CHECKLIST_*.md
+RESUMEN_*.md
+QUICKSTART_*.md
+*_COMPLETA.sql
+QUERIES_*.sql
+README-local.md
+auditoria_github.md
+
+# ARCHIVOS SQL DE MIGRACIÓN - MANTENER LOCAL
+MIGRACION_*.sql
+ALTER_*.sql
+CREATE_*.sql
