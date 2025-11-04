@@ -30,18 +30,20 @@ on:
           - convert_captions_to_script
           - reconcile_comments
           - fetch_comment_sentiment
-          - build_channel_profile
           - build_niche_profile
+          - build_channel_profile
           - scan_competencia_auto_nicho
-          - fetch_trending_videos
-          - refine_trending_with_niche
+          - maint_metrics
+          - unified_analytics
+          - compute_posting_schedule
           - fetch_video_analytics
           - fetch_monetization_metrics
+          - fetch_trending_videos
+          - detect_hidden_gems
+          - refine_trending_with_niche
           - fetch_search_trends
-          - maint_metrics
           - purge_buffer
           - export_sync_watermarks
-          - compute_posting_schedule
       force:
         description: "Ignorar checkpoint (router)"
         required: false
