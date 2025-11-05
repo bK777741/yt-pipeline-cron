@@ -55,6 +55,9 @@ def fetch_youtube_trends(yt, query, region):
 
 def save_trends(sb, trends, region):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    inserted_count = 0
+    skipped_count = 0
+
     for idx, item in enumerate(trends):
         search_query = item["snippet"]["title"]
 
@@ -74,48 +77,83 @@ def save_trends(sb, trends, region):
                 "rank": idx + 1
             }
             sb.table("search_trends").insert(payload).execute()
+            inserted_count += 1
+        else:
+            skipped_count += 1
+
+    print(f"[fetch_search_trends] Region '{region}': {inserted_count} insertados, {skipped_count} ya existían")
 
 def main():
+    print("[fetch_search_trends] Iniciando...")
+
     creds, supabase_url, supabase_key, channel_name = load_env()
     yt = build("youtube", "v3", credentials=creds)
     sb: Client = create_client(supabase_url, supabase_key)
     pytrends = TrendReq()
-    
+
+    total_inserted = 0
+    total_regions_processed = 0
+
     # Tendencias por región
     for region_name, region_code in REGIONS.items():
+        print(f"\n[fetch_search_trends] Procesando región: {region_name} ({region_code})")
+
         # Búsquedas directas al canal
         channel_results = fetch_youtube_trends(yt, channel_name, region_code)
         if channel_results:
+            print(f"[fetch_search_trends] Canal: {len(channel_results)} resultados encontrados")
             save_trends(sb, channel_results, f"canal-{region_name}")
             time.sleep(2)
-        
+        else:
+            print(f"[fetch_search_trends] Canal: 0 resultados (posible cuota excedida)")
+
         # Tendencias generales
         try:
             trends_index = pytrends.trending_searches(pn=region_code)
+            trends_list = trends_index.tolist() if trends_index is not None else []
+
+            if not trends_list:
+                print(f"[fetch_search_trends] pytrends: 0 tendencias para {region_code}")
+                continue
+
+            print(f"[fetch_search_trends] pytrends: {len(trends_list)} tendencias encontradas")
+
         except Exception as e:
-            print(f"[fetch_search_trends] Warning, fallo trending_searches({region_code}): {e}")
+            print(f"[fetch_search_trends] ERROR en trending_searches({region_code}): {e}")
             continue
-            
-        trends_list = trends_index.tolist()
+
         # Guardar cada término como registro
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        inserted_count = 0
+        skipped_count = 0
+
         for idx, term in enumerate(trends_list):
             # Check si ya existe
             existing = sb.table("search_trends") \
                 .select("id") \
-                .eq("search_query", term) \
+                .eq("search_query", str(term)) \
                 .eq("run_date", today) \
                 .eq("region", region_name) \
                 .execute()
 
             if not existing.data:
-                payload = {
-                    "search_query": term,
-                    "run_date": today,
-                    "region": region_name,
-                    "rank": idx + 1
-                }
-                sb.table("search_trends").insert(payload).execute()
+                try:
+                    payload = {
+                        "search_query": str(term),
+                        "run_date": today,
+                        "region": region_name,
+                        "rank": idx + 1
+                    }
+                    sb.table("search_trends").insert(payload).execute()
+                    inserted_count += 1
+                except Exception as e:
+                    print(f"[fetch_search_trends] ERROR insertando '{term}': {e}")
+            else:
+                skipped_count += 1
+
+        print(f"[fetch_search_trends] Region '{region_name}': {inserted_count} insertados, {skipped_count} ya existían")
+        total_inserted += inserted_count
+        total_regions_processed += 1
         time.sleep(2)
-    
-    print("[fetch_search_trends] Tendencias guardadas")
+
+    print(f"\n[fetch_search_trends] ✅ COMPLETADO: {total_regions_processed} regiones procesadas, {total_inserted} tendencias insertadas")
