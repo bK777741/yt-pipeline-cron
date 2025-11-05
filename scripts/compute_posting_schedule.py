@@ -38,8 +38,8 @@ def main():
         try:
             # Extraer día y hora de publicación
             published_at = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00'))
-            weekday = published_at.weekday()  # 0=Lunes, 6=Domingo
-            hour_bucket = published_at.hour // 2  # Bloques de 2 horas (0-11)
+            day_of_week = published_at.weekday()  # 0=Lunes, 6=Domingo
+            hour_of_day = published_at.hour  # Hora exacta (0-23)
             
             # Encontrar estadísticas a las 24h
             next_day = (published_at + timedelta(days=1)).date()
@@ -47,7 +47,7 @@ def main():
                          if s['snapshot_date'] == next_day.isoformat()), None)
             
             if stats and stats.get('view_count'):
-                key = (weekday, hour_bucket)
+                key = (day_of_week, hour_of_day)
                 schedule_data.setdefault(key, []).append(int(stats['view_count']))
         except Exception as e:
             print(f"Error procesando video {video['video_id']}: {str(e)}")
@@ -55,17 +55,20 @@ def main():
 
     # Calcular promedios y preparar datos para upsert
     upsert_data = []
-    for (weekday, hour_bucket), views in schedule_data.items():
+    for (day_of_week, hour_of_day), views in schedule_data.items():
         avg_views = sum(views) / len(views)
+        video_count = len(views)
         upsert_data.append({
-            'weekday': weekday,
-            'hour_bucket': hour_bucket,
-            'avg_views_24h': avg_views
+            'day_of_week': day_of_week,
+            'hour_of_day': hour_of_day,
+            'avg_views': int(avg_views),
+            'video_count': video_count,
+            'optimal_score': min(1.0, avg_views / 10000)  # Score normalizado
         })
 
     # Actualizar base de datos
     if upsert_data:
-        sb.table('posting_schedule').upsert(upsert_data, on_conflict='weekday,hour_bucket').execute()
+        sb.table('posting_schedule').upsert(upsert_data, on_conflict='day_of_week,hour_of_day').execute()
     
     print(f"[compute_posting_schedule] Horarios actualizados: {len(upsert_data)} registros")
 
