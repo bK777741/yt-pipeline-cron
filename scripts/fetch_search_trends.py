@@ -56,15 +56,24 @@ def fetch_youtube_trends(yt, query, region):
 def save_trends(sb, trends, region):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for idx, item in enumerate(trends):
-        query = item["snippet"]["title"]
-        # FORZADO 2025-10-31: on_conflict STRING format
-        payload = {
-            "query": query,
-            "run_date": today,
-            "region": region,
-            "rank": idx + 1
-        }
-        sb.table("search_trends").upsert(payload, on_conflict="query,run_date,region").execute()
+        search_query = item["snippet"]["title"]
+
+        # Check si ya existe
+        existing = sb.table("search_trends") \
+            .select("id") \
+            .eq("search_query", search_query) \
+            .eq("run_date", today) \
+            .eq("region", region) \
+            .execute()
+
+        if not existing.data:
+            payload = {
+                "search_query": search_query,
+                "run_date": today,
+                "region": region,
+                "rank": idx + 1
+            }
+            sb.table("search_trends").insert(payload).execute()
 
 def main():
     creds, supabase_url, supabase_key, channel_name = load_env()
@@ -91,14 +100,22 @@ def main():
         # Guardar cada término como registro
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         for idx, term in enumerate(trends_list):
-            # FORZADO 2025-10-31: on_conflict STRING format
-            payload = {
-                "query": term,
-                "run_date": today,
-                "region": region_name,
-                "rank": idx + 1
-            }
-            sb.table("search_trends").upsert(payload, on_conflict="query,run_date,region").execute()
+            # Check si ya existe
+            existing = sb.table("search_trends") \
+                .select("id") \
+                .eq("search_query", term) \
+                .eq("run_date", today) \
+                .eq("region", region_name) \
+                .execute()
+
+            if not existing.data:
+                payload = {
+                    "search_query": term,
+                    "run_date": today,
+                    "region": region_name,
+                    "rank": idx + 1
+                }
+                sb.table("search_trends").insert(payload).execute()
         time.sleep(2)
     
     print("[fetch_search_trends] Tendencias guardadas")
