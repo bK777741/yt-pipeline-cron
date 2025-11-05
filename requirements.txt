@@ -10,7 +10,6 @@ beautifulsoup4
 numpy
 scipy
 nltk==3.8.1
-pytrends
 opencv-python-headless==4.10.0.84
 Pillow>=10.4.0
 imagehash>=4.3.1

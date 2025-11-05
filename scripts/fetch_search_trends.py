@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 fetch_search_trends.py
-Recoge tendencias de búsqueda en Latinoamérica.
+Recoge tendencias de búsqueda en Latinoamérica usando YouTube Trending.
+ACTUALIZADO: 2025-11-05 - Eliminada dependencia de pytrends (Error 404)
 """
 import os
 import sys
 import time
 from datetime import datetime, timezone
-from pytrends.request import TrendReq
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
-from googleapiclient.errors import HttpError  # Importar para manejar cuotas
+from googleapiclient.errors import HttpError
 
 # Force unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
@@ -27,6 +27,8 @@ REGIONS = {
     "global": "US"
 }
 
+MAX_TRENDING_VIDEOS = 20  # Videos trending a extraer por región
+
 def load_env():
     creds = Credentials(
         token=None,
@@ -40,53 +42,71 @@ def load_env():
     channel_name = os.environ["CHANNEL_NAME"].strip()
     return creds, supabase_url, supabase_key, channel_name
 
-def fetch_youtube_trends(yt, query, region):
+def fetch_youtube_trending(yt, region, max_results=20):
+    """
+    Obtiene videos trending de YouTube para una región.
+    Retorna lista de títulos de videos trending.
+    """
     try:
-        req = yt.search().list(
-            q=query,
+        req = yt.videos().list(
             part="snippet",
-            type="video",
-            order="relevance",
-            maxResults=20,
-            regionCode=region
+            chart="mostPopular",
+            regionCode=region,
+            maxResults=max_results,
+            videoCategoryId="28"  # Categoría 28 = Science & Technology
         )
-        return req.execute().get("items", [])
+        response = req.execute()
+
+        # Extraer títulos de videos trending
+        trending_titles = []
+        for item in response.get("items", []):
+            title = item["snippet"]["title"]
+            trending_titles.append(title)
+
+        return trending_titles
     except HttpError as e:
         if "quotaExceeded" in str(e):
-            print("[fetch_search_trends] quotaExceeded, salto")
+            print(f"[fetch_search_trends] quotaExceeded para {region}", flush=True)
             return []
         else:
-            raise
+            print(f"[fetch_search_trends] Error HTTP para {region}: {e}", flush=True)
+            return []
 
-def save_trends(sb, trends, region):
+def save_trends(sb, titles, region):
+    """
+    Guarda títulos trending en la tabla search_trends.
+    titles: lista de strings (títulos de videos)
+    """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     inserted_count = 0
     skipped_count = 0
 
-    for idx, item in enumerate(trends):
-        search_query = item["snippet"]["title"]
-
+    for idx, title in enumerate(titles):
         # Check si ya existe
         existing = sb.table("search_trends") \
             .select("id") \
-            .eq("search_query", search_query) \
+            .eq("search_query", title) \
             .eq("run_date", today) \
             .eq("region", region) \
             .execute()
 
         if not existing.data:
-            payload = {
-                "search_query": search_query,
-                "run_date": today,
-                "region": region,
-                "rank": idx + 1
-            }
-            sb.table("search_trends").insert(payload).execute()
-            inserted_count += 1
+            try:
+                payload = {
+                    "search_query": title,
+                    "run_date": today,
+                    "region": region,
+                    "rank": idx + 1
+                }
+                sb.table("search_trends").insert(payload).execute()
+                inserted_count += 1
+            except Exception as e:
+                print(f"[fetch_search_trends] ERROR insertando '{title}': {e}", flush=True)
         else:
             skipped_count += 1
 
-    print(f"[fetch_search_trends] Region '{region}': {inserted_count} insertados, {skipped_count} ya existían")
+    print(f"[fetch_search_trends] Region '{region}': {inserted_count} insertados, {skipped_count} ya existían", flush=True)
+    return inserted_count
 
 def main():
     print("[fetch_search_trends] Iniciando...", flush=True)
@@ -94,74 +114,28 @@ def main():
     creds, supabase_url, supabase_key, channel_name = load_env()
     yt = build("youtube", "v3", credentials=creds)
     sb: Client = create_client(supabase_url, supabase_key)
-    pytrends = TrendReq()
 
     total_inserted = 0
     total_regions_processed = 0
 
-    # Tendencias por región
+    # Obtener tendencias de YouTube por región
     for region_name, region_code in REGIONS.items():
-        print(f"\n[fetch_search_trends] Procesando región: {region_name} ({region_code})")
+        print(f"\n[fetch_search_trends] Procesando región: {region_name} ({region_code})", flush=True)
 
-        # Búsquedas directas al canal
-        channel_results = fetch_youtube_trends(yt, channel_name, region_code)
-        if channel_results:
-            print(f"[fetch_search_trends] Canal: {len(channel_results)} resultados encontrados")
-            save_trends(sb, channel_results, f"canal-{region_name}")
-            time.sleep(2)
+        # Obtener videos trending de YouTube
+        trending_titles = fetch_youtube_trending(yt, region_code, MAX_TRENDING_VIDEOS)
+
+        if trending_titles:
+            print(f"[fetch_search_trends] YouTube Trending: {len(trending_titles)} videos encontrados", flush=True)
+            inserted = save_trends(sb, trending_titles, region_name)
+            total_inserted += inserted
+            total_regions_processed += 1
         else:
-            print(f"[fetch_search_trends] Canal: 0 resultados (posible cuota excedida)")
+            print(f"[fetch_search_trends] YouTube Trending: 0 videos (posible cuota excedida o región sin datos)", flush=True)
 
-        # Tendencias generales
-        try:
-            trends_index = pytrends.trending_searches(pn=region_code)
-            trends_list = trends_index.tolist() if trends_index is not None else []
+        time.sleep(2)  # Respetar rate limits
 
-            if not trends_list:
-                print(f"[fetch_search_trends] pytrends: 0 tendencias para {region_code}")
-                continue
-
-            print(f"[fetch_search_trends] pytrends: {len(trends_list)} tendencias encontradas")
-
-        except Exception as e:
-            print(f"[fetch_search_trends] ERROR en trending_searches({region_code}): {e}")
-            continue
-
-        # Guardar cada término como registro
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        inserted_count = 0
-        skipped_count = 0
-
-        for idx, term in enumerate(trends_list):
-            # Check si ya existe
-            existing = sb.table("search_trends") \
-                .select("id") \
-                .eq("search_query", str(term)) \
-                .eq("run_date", today) \
-                .eq("region", region_name) \
-                .execute()
-
-            if not existing.data:
-                try:
-                    payload = {
-                        "search_query": str(term),
-                        "run_date": today,
-                        "region": region_name,
-                        "rank": idx + 1
-                    }
-                    sb.table("search_trends").insert(payload).execute()
-                    inserted_count += 1
-                except Exception as e:
-                    print(f"[fetch_search_trends] ERROR insertando '{term}': {e}")
-            else:
-                skipped_count += 1
-
-        print(f"[fetch_search_trends] Region '{region_name}': {inserted_count} insertados, {skipped_count} ya existían")
-        total_inserted += inserted_count
-        total_regions_processed += 1
-        time.sleep(2)
-
-    print(f"\n[fetch_search_trends] ✅ COMPLETADO: {total_regions_processed} regiones procesadas, {total_inserted} tendencias insertadas")
+    print(f"\n[fetch_search_trends] ✅ COMPLETADO: {total_regions_processed} regiones procesadas, {total_inserted} tendencias insertadas", flush=True)
     sys.stdout.flush()
 
 if __name__ == "__main__":
