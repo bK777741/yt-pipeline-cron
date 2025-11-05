@@ -4,6 +4,7 @@ fetch_search_trends.py
 Recoge tendencias de búsqueda en Latinoamérica.
 """
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pytrends.request import TrendReq
@@ -11,6 +12,10 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from supabase import create_client, Client
 from googleapiclient.errors import HttpError  # Importar para manejar cuotas
+
+# Force unbuffered output
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 REGIONS = {
     "latam-pe": "PE",
@@ -84,7 +89,7 @@ def save_trends(sb, trends, region):
     print(f"[fetch_search_trends] Region '{region}': {inserted_count} insertados, {skipped_count} ya existían")
 
 def main():
-    print("[fetch_search_trends] Iniciando...")
+    print("[fetch_search_trends] Iniciando...", flush=True)
 
     creds, supabase_url, supabase_key, channel_name = load_env()
     yt = build("youtube", "v3", credentials=creds)
@@ -157,3 +162,14 @@ def main():
         time.sleep(2)
 
     print(f"\n[fetch_search_trends] ✅ COMPLETADO: {total_regions_processed} regiones procesadas, {total_inserted} tendencias insertadas")
+    sys.stdout.flush()
+
+if __name__ == "__main__":
+    print("[fetch_search_trends] Script iniciado", flush=True)
+    try:
+        main()
+    except Exception as e:
+        print(f"[fetch_search_trends] ERROR FATAL: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
