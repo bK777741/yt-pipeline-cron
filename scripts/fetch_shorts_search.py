@@ -151,7 +151,7 @@ def parse_duration(duration_iso):
     seconds = int(match.group(3) or 0)
     return hours * 3600 + minutes * 60 + seconds
 
-def filter_and_process_shorts(videos, existing_ids, min_score=15):
+def filter_and_process_shorts(videos, existing_ids, min_score=50):
     """
     Filtrar shorts por nicho y relevancia
 

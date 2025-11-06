@@ -277,18 +277,18 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
         union = channel_profile["keywords"] | video_words
         similarity = len(intersection) / len(union) if union else 0.0
 
-    # FIX 2025-11-03: Filtrado de nicho es OBLIGATORIO (más confiable que similarity)
+    # FIX 2025-11-06: Filtrado de nicho es OBLIGATORIO (más confiable que similarity)
     # El filtro de similarity se usa solo como métrica informativa
     if NICHO_FILTERING_ENABLED:
-        # Reducir min_score a 15 (MUY PERMISIVO)
+        # Score mínimo 50 para garantizar calidad del nicho
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
             snippet.get("categoryId"),
-            min_score=15  # Score mínimo 15 (detecta casi todo tech/IA/tutoriales)
+            min_score=50  # Score mínimo 50 (solo tech/IA/tutoriales de calidad)
         )
         if not es_relevante:
-            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 15: {title}")
+            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 50: {title}")
             return None
         elif debug:
             print(f"[PASS ✅] {video_id} - Nicho {nicho_score}, Sim {similarity:.3f}: {title}")
