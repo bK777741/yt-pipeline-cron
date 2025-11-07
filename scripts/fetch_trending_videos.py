@@ -296,15 +296,15 @@ def process_video(video, region, channel_profile, allowed_langs, long_min_second
     # FIX 2025-11-06: Filtrado de nicho es OBLIGATORIO (más confiable que similarity)
     # El filtro de similarity se usa solo como métrica informativa
     if NICHO_FILTERING_ENABLED:
-        # Score mínimo 50 para garantizar calidad del nicho
+        # Score mínimo 60 para garantizar MÁXIMA calidad del nicho
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
             snippet.get("categoryId"),
-            min_score=50  # Score mínimo 50 (solo tech/IA/tutoriales de calidad)
+            min_score=60  # Score mínimo 60 (SOLO tech/IA/tutoriales de máxima calidad)
         )
         if not es_relevante:
-            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 50: {title}")
+            if debug: print(f"[FILTRO] {video_id} - Nicho score {nicho_score} < 60: {title}")
             return None
         elif debug:
             print(f"[PASS ✅] {video_id} - Nicho {nicho_score}, Sim {similarity:.3f}: {title}")

@@ -159,7 +159,7 @@ def calculate_vph(views, published_at):
     except:
         return 0
 
-def filter_and_process_longs(videos, existing_ids, min_score=50, min_duration=180):
+def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=180):
     """
     Filtrar videos largos por nicho, relevancia y explosividad
 

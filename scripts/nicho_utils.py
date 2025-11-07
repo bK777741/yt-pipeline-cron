@@ -61,14 +61,16 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
 
     Args:
         titulo: Título del video
-        descripcion: Descripción del video
+        descripcion: Descripción del video (IGNORADO - solo se usa título)
         category_id: ID de categoría de YouTube
 
     Returns:
         Score de 0-100 (0 = irrelevante, 100 = muy relevante)
     """
     score = 0
-    texto = f"{titulo} {descripcion}".lower()
+    # FIX 2025-11-07: SOLO usar título, ignorar descripción
+    # Las descripciones tienen ruido (links a redes sociales, etc.)
+    texto = titulo.lower()
 
     nicho_config = CONFIG["nicho"]
     keywords_oro = nicho_config.get("keywords_oro", [])
@@ -120,11 +122,11 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
     # 5. Normalizar a rango 0-100
     score_final = max(0, min(100, score))
 
-    # DEBUG: Log scoring detallado para videos con score >= 50 (los sospechosos)
+    # DEBUG: Log scoring detallado para videos con score >= 60 (los sospechosos)
     if not hasattr(calcular_relevancia_nicho, '_debug_count'):
         calcular_relevancia_nicho._debug_count = 0
 
-    if calcular_relevancia_nicho._debug_count < 5 and score_final >= 50:
+    if calcular_relevancia_nicho._debug_count < 5 and score_final >= 60:
         print(f"[DEBUG SCORING] titulo='{titulo[:50]}'")
         print(f"  - Keywords oro ({len(debug_info['matches_oro'])}): {debug_info['matches_oro'][:5]}")
         print(f"  - Keywords alto valor ({len(debug_info['matches_alto_valor'])}): {debug_info['matches_alto_valor'][:3]}")
@@ -137,7 +139,7 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
 
 def es_video_relevante(titulo: str, descripcion: str = "",
                        category_id: Optional[int] = None,
-                       min_score: int = 50) -> Tuple[bool, int]:
+                       min_score: int = 60) -> Tuple[bool, int]:
     """
     Determina si un video es relevante para el nicho
 
