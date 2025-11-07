@@ -27,14 +27,22 @@ except ImportError as e:
     sys.exit(1)
 
 # Keywords estratégicas para búsqueda de shorts
+# FIX 2025-11-07: Expandir a keywords TOP del nicho (WhatsApp + IA + Windows)
 SEARCH_KEYWORDS = [
-    "chatgpt trucos",
-    "windows tutorial",
-    "ia gratis"
+    "whatsapp trucos",
+    "whatsapp oculto",
+    "chatgpt tutorial",
+    "chatgpt gratis",
+    "ia gratis",
+    "windows 11 trucos",
+    "windows optimizar",
+    "tutorial pc",
+    "gemini ia",
+    "copilot tutorial"
 ]
 
 MAX_RESULTS_PER_KEYWORD = 50
-MIN_NICHO_SCORE = 15
+MIN_NICHO_SCORE = 60  # FIX: Aumentar de 15 a 60 para máxima calidad
 
 def load_env():
     """Cargar variables de entorno"""

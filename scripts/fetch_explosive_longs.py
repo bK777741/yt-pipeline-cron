@@ -26,10 +26,16 @@ except ImportError as e:
     print(f"[ERROR] nicho_utils.py requerido para este script: {e}")
     sys.exit(1)
 
-# Keyword para búsqueda de videos largos explosivos
-SEARCH_KEYWORD = "tutorial tech 2025"  # Keyword genérica para encontrar tutoriales recientes
-MAX_RESULTS = 50
-MIN_NICHO_SCORE = 15
+# Keywords para búsqueda de videos largos explosivos
+# FIX 2025-11-07: Expandir a keywords TOP + cambiar a lista múltiple
+SEARCH_KEYWORDS = [
+    "tutorial chatgpt completo",
+    "whatsapp tutorial completo",
+    "curso windows gratis",
+    "tutorial ia 2025"
+]
+MAX_RESULTS_PER_KEYWORD = 20  # Menos por keyword porque son videos largos
+MIN_NICHO_SCORE = 60  # FIX: Aumentar de 15 a 60 para máxima calidad
 MIN_DURATION_SECONDS = 180  # Mínimo 3 minutos para considerar "largo"
 
 def load_env():
@@ -71,11 +77,11 @@ def get_existing_video_ids(sb: Client):
         print(f"[WARNING] Error obteniendo videos existentes: {e}")
         return set()
 
-def search_explosive_longs(yt, max_results=50):
+def search_explosive_longs(yt, keyword, max_results=50):
     """
     Buscar videos largos con crecimiento explosivo
 
-    Costo: 100 unidades API
+    Costo: 100 unidades API por keyword
     """
     try:
         # Fecha límite: últimos 7 días (videos MUY recientes con explosión viral)
@@ -83,7 +89,7 @@ def search_explosive_longs(yt, max_results=50):
 
         request = yt.search().list(
             part="id,snippet",
-            q=SEARCH_KEYWORD,
+            q=keyword,
             type="video",
             videoDuration="medium",  # Videos medianos/largos (>4 min)
             publishedAfter=published_after,
@@ -99,11 +105,11 @@ def search_explosive_longs(yt, max_results=50):
             if item["id"]["kind"] == "youtube#video":
                 video_ids.append(item["id"]["videoId"])
 
-        print(f"[fetch_explosive_longs] Videos encontrados: {len(video_ids)}")
+        print(f"[fetch_explosive_longs] Keyword '{keyword}': {len(video_ids)} videos encontrados")
         return video_ids
 
     except Exception as e:
-        print(f"[ERROR] Búsqueda fallida: {e}")
+        print(f"[ERROR] Búsqueda fallida para '{keyword}': {e}")
         return []
 
 def get_video_details(yt, video_ids):
@@ -296,11 +302,22 @@ def main():
     # Obtener videos existentes
     existing_ids = get_existing_video_ids(sb)
 
-    # Búsqueda de videos explosivos
-    video_ids = search_explosive_longs(yt, MAX_RESULTS)
+    # Búsqueda de videos explosivos con múltiples keywords
+    all_video_ids = []
+    api_calls = 0
+
+    for keyword in SEARCH_KEYWORDS:
+        video_ids = search_explosive_longs(yt, keyword, MAX_RESULTS_PER_KEYWORD)
+        all_video_ids.extend(video_ids)
+        api_calls += 1  # search.list = 100 unidades
+
+    # Deduplicar IDs de búsqueda
+    all_video_ids = list(set(all_video_ids))
+    print(f"\n[fetch_explosive_longs] Total videos únicos encontrados: {len(all_video_ids)}")
 
     # Obtener detalles
-    videos = get_video_details(yt, video_ids)
+    videos = get_video_details(yt, all_video_ids)
+    api_calls += len(all_video_ids)  # videos.list = 1 unidad por video
 
     # Filtrar por nicho y explosividad
     valid_longs = filter_and_process_longs(videos, existing_ids, MIN_NICHO_SCORE, MIN_DURATION_SECONDS)
@@ -308,8 +325,8 @@ def main():
     # Insertar en Supabase
     insert_longs_to_supabase(sb, valid_longs)
 
-    # Registrar cuota usada (100 search + N videos.list)
-    total_units = 100 + len(video_ids)
+    # Registrar cuota usada (100 por keyword + N videos.list)
+    total_units = (len(SEARCH_KEYWORDS) * 100) + len(all_video_ids)
     registrar_uso_cuota("search_explosive", total_units, sb)
     print(f"\n[fetch_explosive_longs] 📊 Cuota API usada: {total_units} unidades")
 
@@ -324,7 +341,8 @@ def main():
         print(f"[WARNING] Error registrando watermark: {e}")
 
     print(f"\n[fetch_explosive_longs] ✅ Proceso completado")
-    print(f"  - Videos encontrados: {len(video_ids)}")
+    print(f"  - Keywords buscadas: {len(SEARCH_KEYWORDS)}")
+    print(f"  - Videos encontrados: {len(all_video_ids)}")
     print(f"  - Videos insertados: {len(valid_longs)}")
     print(f"  - Cuota usada: {total_units} unidades")
 
