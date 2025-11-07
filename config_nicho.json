@@ -4,41 +4,99 @@
     "descripcion": "Canal enfocado en tutoriales de tecnología, inteligencia artificial, redes sociales y productividad digital",
 
     "keywords_oro": [
-      "tutorial", "como usar", "how to", "guia paso a paso", "explicado",
-      "pc", "computadora", "laptop", "windows", "windows 11", "windows 10", "mac",
+      "tutorial", "como usar", "how to", "guia paso a paso", "explicado", "paso a paso",
+      "pc", "computadora", "laptop", "windows", "windows 11", "windows 10", "mac", "linux",
+
       "inteligencia artificial", "ia", "ai", "chatgpt", "gemini", "copilot", "claude",
-      "whatsapp", "telegram",
+      "leonardo ai", "midjourney", "stable diffusion", "dall-e", "gpt-4", "llama",
+      "perplexity", "hugging face", "runway", "synthesia", "firefly",
+
+      "whatsapp", "telegram", "discord", "slack", "zoom", "teams",
+
+      "google", "gmail", "drive", "docs", "sheets", "chrome", "maps", "fotos",
+      "youtube studio", "analytics", "adsense", "search console",
+      "problemas gmail", "error gmail", "youtube problemas", "monetizacion youtube",
+      "noticias google", "actualizar google", "trucos gmail", "youtube tips",
+
+      "android", "play store", "apk", "xiaomi", "realme", "oppo", "huawei",
+      "instalar apk", "descargar apk", "app android", "personalizar android",
+
+      "antivirus", "malware", "virus", "seguridad", "firewall", "vpn",
+      "eliminar virus", "proteger pc", "seguridad online", "password manager",
+      "ransomware", "spyware", "adware", "troyano",
+
+      "optimizar pc", "acelerar pc", "limpiar pc", "mejorar rendimiento",
+      "memoria ram", "disco duro", "ssd", "copia de seguridad", "backup",
+      "desfragmentar", "liberar espacio", "cache", "registro windows",
+      "temperatura pc", "cpu", "gpu", "drivers", "bios", "uefi",
+
       "app", "aplicacion", "software", "programa", "herramienta", "extension",
-      "trucos", "tips", "hack", "configurar", "instalar", "activar",
-      "review", "analisis", "gadget", "tecnologia", "tech",
+      "trucos", "tips", "hack", "configurar", "instalar", "activar", "desinstalar",
+      "review", "analisis", "comparativa", "gadget", "tecnologia", "tech",
+
       "smartphone", "celular", "android", "ios", "iphone", "samsung",
-      "gratis", "free", "sin pagar", "gratuito",
-      "productividad", "trabajo", "estudiar", "aprender", "educacion",
-      "curso", "tutorial completo", "de 0 a 100", "full course",
-      "2024", "2025", "nuevo", "actualizado", "ultima version", "novedad",
-      "office", "word", "excel", "powerpoint", "outlook", "microsoft 365",
-      "google", "gmail", "drive", "docs", "sheets", "chrome",
-      "creador", "monetizar", "seo",
-      "editar", "crear", "diseñar", "hacer", "generar",
-      "reparar", "arreglar", "solucionar", "fix", "error", "problema",
-      "canva", "photoshop", "premiere", "capcut", "davinci",
-      "automatizar", "script", "bot", "ia para", "con ia",
-      "sin registro", "sin descargar", "online", "web",
-      "ganar dinero", "negocio", "emprender"
+      "gratis", "free", "sin pagar", "gratuito", "version gratuita",
+
+      "productividad", "trabajo", "estudiar", "aprender", "educacion", "remoto",
+      "curso", "tutorial completo", "de 0 a 100", "full course", "principiantes",
+
+      "2024", "2025", "nuevo", "actualizado", "ultima version", "novedad", "noticia",
+
+      "office", "word", "excel", "powerpoint", "outlook", "microsoft 365", "onenote",
+      "access", "publisher", "project", "visio", "teams",
+
+      "creador", "monetizar", "seo", "keywords", "posicionamiento",
+
+      "editar", "crear", "diseñar", "hacer", "generar", "exportar", "importar",
+      "reparar", "arreglar", "solucionar", "fix", "error", "problema", "fallo",
+
+      "canva", "photoshop", "premiere", "capcut", "davinci", "filmora",
+      "after effects", "illustrator", "lightroom", "gimp", "inkscape",
+      "camtasia", "obs", "streamlabs", "audacity", "fl studio",
+
+      "automatizar", "script", "bot", "ia para", "con ia", "usando ia",
+      "sin registro", "sin descargar", "online", "web", "navegador",
+
+      "ganar dinero", "negocio", "emprender", "freelance", "monetizar",
+
+      "codigo", "programacion", "html", "css", "javascript", "python",
+      "vscode", "github", "git", "desarrollo web", "frontend", "backend",
+
+      "base de datos", "sql", "mysql", "excel avanzado", "macros", "formulas",
+      "power bi", "tableau", "data science", "analisis de datos"
     ],
 
     "keywords_alto_valor": [
-      "ia gratis", "chatgpt español", "chatgpt gratis", "tutorial completo",
+      "ia gratis", "chatgpt español", "chatgpt gratis", "tutorial completo", "curso gratis",
       "mejor app 2025", "herramienta gratis", "truco secreto", "hack secreto",
       "configuracion perfecta", "optimizar pc", "acelerar windows", "limpiar pc",
       "sin programas", "facil y rapido", "en 5 minutos", "sin descargar nada",
       "funciones ocultas", "trucos profesionales", "poco conocidos",
+
       "office gratis", "word gratis", "excel gratis", "activar office",
-      "whatsapp trucos", "instagram trucos", "facebook trucos",
-      "arreglar error", "solucionar problema", "reparar windows",
+      "whatsapp trucos", "gmail trucos", "youtube trucos",
+
+      "arreglar error", "solucionar problema", "reparar windows", "fix windows",
+      "eliminar virus", "limpiar malware", "proteger pc",
+
       "como ganar dinero", "automatizar con ia", "productividad 10x",
       "sin marca de agua", "sin limites", "ilimitado gratis",
-      "mejor que chatgpt", "alternativa gratis", "sin registrarse"
+      "mejor que chatgpt", "alternativa gratis", "sin registrarse",
+
+      "leonardo ai gratis", "midjourney gratis", "ia para imagenes",
+      "editor video gratis", "capcut tutorial", "premiere gratis",
+
+      "optimizar ram", "liberar espacio", "copia de seguridad gratis",
+      "android trucos", "play store hack", "apk modificado",
+
+      "problemas gmail resueltos", "error youtube solucion", "gmail no funciona",
+      "youtube no carga", "drive sin espacio", "chrome lento",
+
+      "password manager gratis", "vpn gratis", "antivirus sin pagar",
+      "acelerar internet", "mejorar conexion", "wifi mas rapido",
+
+      "excel avanzado", "macros excel", "power bi tutorial",
+      "programar sin experiencia", "python desde cero", "html basico"
     ],
 
     "keywords_shorts": [
