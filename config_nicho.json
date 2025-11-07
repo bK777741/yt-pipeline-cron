@@ -63,7 +63,58 @@
       "vscode", "github", "git", "desarrollo web", "frontend", "backend",
 
       "base de datos", "sql", "mysql", "excel avanzado", "macros", "formulas",
-      "power bi", "tableau", "data science", "analisis de datos"
+      "power bi", "tableau", "data science", "analisis de datos",
+
+      "notion", "trello", "asana", "clickup", "monday", "gestion proyectos",
+      "evernote", "obsidian", "roam research", "logseq",
+
+      "streaming", "obs studio", "twitch", "youtube live", "streamyard",
+      "camara web", "microfono", "iluminacion", "overlay", "alerts",
+
+      "pdf", "convertir pdf", "editar pdf", "comprimir pdf", "unir pdf",
+      "ocr", "escanear documento", "adobe acrobat", "pdf gratis",
+
+      "router", "modem", "wifi", "red", "ip", "dns", "puerto", "ethernet",
+      "repetidor wifi", "amplificador señal", "configurar router",
+
+      "bitcoin", "ethereum", "crypto", "blockchain", "wallet", "metamask",
+      "nft", "web3", "solana", "binance", "coinbase", "tutorial crypto",
+
+      "arduino", "raspberry pi", "iot", "domotica", "smart home",
+      "alexa", "google home", "home assistant", "tasmota", "esphome",
+
+      "impresora 3d", "modelado 3d", "blender", "fusion 360", "tinkercad",
+      "slicing", "cura", "prusaslicer", "filamento", "calibracion",
+
+      "podcast", "audicion", "edicion audio", "microfono usb", "interfaz audio",
+      "mezcla", "masterizacion", "anchor", "spotify podcasts",
+
+      "shopify", "woocommerce", "tienda online", "ecommerce", "dropshipping",
+      "pagina web", "wordpress", "hosting", "dominio", "ssl",
+
+      "email marketing", "mailchimp", "sendinblue", "newsletter", "automatizacion",
+      "ads", "publicidad", "facebook ads", "google ads", "meta ads",
+
+      "linkedin", "reddit", "pinterest", "medium", "quora", "tumblr",
+      "perfil profesional", "networking", "marca personal",
+
+      "scratch", "code.org", "codecademy", "khan academy", "udemy",
+      "coursera", "platzi", "educacion online", "aprender gratis",
+
+      "java", "c++", "php", "ruby", "swift", "kotlin", "typescript",
+      "react", "angular", "vue", "node.js", "django", "flask",
+
+      "mongodb", "firebase", "supabase", "postgresql", "redis", "nosql",
+      "api", "rest api", "graphql", "websocket", "json",
+
+      "docker", "kubernetes", "aws", "azure", "google cloud", "heroku",
+      "deploy", "servidor", "vps", "hosting gratuito",
+
+      "seo avanzado", "backlinks", "keyword research", "google trends",
+      "semrush", "ahrefs", "ubersuggest", "rank math", "yoast",
+
+      "accesibilidad", "subtitulos", "transcripcion", "texto a voz",
+      "voz a texto", "lector pantalla", "contraste", "teclado virtual"
     ],
 
     "keywords_alto_valor": [
