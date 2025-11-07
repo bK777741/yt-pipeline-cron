@@ -261,7 +261,7 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             stats["muy_cortos"] += 1
             continue
 
-        # 3. Filtro de nicho
+        # 3. Filtro de nicho (calcular score, pero no rechazar todavía)
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
@@ -269,7 +269,8 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             min_score=min_score
         )
 
-        if not es_relevante:
+        # Si score < 50, rechazar inmediatamente (muy bajo)
+        if nicho_score < 50:
             stats["bajo_score"] += 1
             continue
 
@@ -306,7 +307,17 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
         elif nicho_score >= 65 and vph >= 8:
             pass  # Tutoriales premium del nicho (score perfecto) con tracción mínima (192 vistas/día)
 
-        # RECHAZAR: Videos antiguos o con VPH muy bajo
+        # PRIORIDAD 5: Video con SCORE MEDIO (50-59) + VPH alto (>=25) - ACEPTAR
+        # Permite tutoriales de calidad media con explosividad comprobada
+        elif 50 <= nicho_score < 60 and vph >= 25:
+            pass  # Score medio pero con tracción fuerte (600 vistas/día)
+
+        # PRIORIDAD 6: Video con SCORE PREMIUM (>=60) SIN restricción de VPH - ACEPTAR
+        # Tutoriales de alta calidad del nicho pasan siempre
+        elif nicho_score >= 60:
+            pass  # Score premium del nicho, pasa sin importar VPH
+
+        # RECHAZAR: Videos con score bajo o sin tracción suficiente
         else:
             stats["baja_explosividad"] += 1
             continue
