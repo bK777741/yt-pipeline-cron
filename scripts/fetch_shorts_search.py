@@ -162,7 +162,66 @@ def parse_duration(duration_iso):
     seconds = int(match.group(3) or 0)
     return hours * 3600 + minutes * 60 + seconds
 
-def filter_and_process_shorts(videos, existing_ids, min_score=60):
+def get_channel_subscribers(yt, channel_ids):
+    """
+    Obtener número de suscriptores de canales
+
+    Costo: 1 unidad API por request (puede procesar hasta 50 canales)
+    """
+    if not channel_ids:
+        return {}
+
+    channel_subs = {}
+    unique_channels = list(set(channel_ids))
+
+    for i in range(0, len(unique_channels), 50):
+        batch = unique_channels[i:i+50]
+
+        try:
+            request = yt.channels().list(
+                part="statistics",
+                id=",".join(batch)
+            )
+            response = request.execute()
+
+            for item in response.get("items", []):
+                channel_id = item["id"]
+                subs = int(item.get("statistics", {}).get("subscriberCount", 0))
+                channel_subs[channel_id] = subs
+
+        except Exception as e:
+            print(f"[WARNING] Error obteniendo suscriptores de canales: {e}")
+            continue
+
+    return channel_subs
+
+def calculate_priority_score(channel_subs, views):
+    """
+    Calcular score de prioridad basado en tamaño del canal y vistas
+
+    PRIORIDAD 1: Canal pequeño (<10K) + Altas vistas = Score más alto
+    PRIORIDAD 2: Canal mediano (10K-100K) + Buenas vistas = Score medio
+    PRIORIDAD 3: Canal grande (>100K) + Vistas = Score bajo
+
+    Returns:
+        Score de prioridad (mayor = mejor)
+    """
+    score = 0
+
+    # Bonus por tamaño de canal (PEQUEÑO = MÁS PUNTOS)
+    if channel_subs < 10000:
+        score += 1000  # Canal PEQUEÑO - PRIORIDAD MÁXIMA
+    elif channel_subs < 100000:
+        score += 500   # Canal MEDIANO - PRIORIDAD MEDIA
+    else:
+        score += 100   # Canal GRANDE - PRIORIDAD BAJA
+
+    # Agregar vistas al score
+    score += views / 100  # Normalizar vistas
+
+    return score
+
+def filter_and_process_shorts(videos, channel_subs, existing_ids, min_score=60):
     """
     Filtrar shorts por nicho y relevancia
 
@@ -175,7 +234,10 @@ def filter_and_process_shorts(videos, existing_ids, min_score=60):
         "duplicados": 0,
         "no_short": 0,
         "bajo_score": 0,
-        "validos": 0
+        "validos": 0,
+        "por_canal_pequeno": 0,
+        "por_canal_mediano": 0,
+        "por_canal_grande": 0
     }
 
     for video in videos:
@@ -207,22 +269,44 @@ def filter_and_process_shorts(videos, existing_ids, min_score=60):
             stats["bajo_score"] += 1
             continue
 
-        # 4. Video válido - preparar para inserción
+        # 4. Obtener tamaño del canal y calcular score de prioridad
+        channel_id = snippet["channelId"]
+        subs = channel_subs.get(channel_id, 0)
+        views = int(statistics.get("viewCount", 0))
+
+        # Calcular score de prioridad (canal pequeño + altas vistas = score máximo)
+        priority_score = calculate_priority_score(subs, views)
+
+        # Contar por tipo de canal
+        if subs < 10000:
+            stats["por_canal_pequeno"] += 1
+        elif subs < 100000:
+            stats["por_canal_mediano"] += 1
+        else:
+            stats["por_canal_grande"] += 1
+
+        # 5. Video válido - preparar para inserción
         stats["validos"] += 1
 
         valid_shorts.append({
             "video_id": video_id,
             "title": snippet["title"],
-            "channel_id": snippet["channelId"],
+            "channel_id": channel_id,
             "channel_title": snippet["channelTitle"],
+            "channel_subscribers": subs,
             "published_at": snippet["publishedAt"],
-            "view_count": int(statistics.get("viewCount", 0)),
+            "view_count": views,
             "like_count": int(statistics.get("likeCount", 0)),
             "comment_count": int(statistics.get("commentCount", 0)),
             "duration_sec": duration_sec,
             "nicho_score": nicho_score,
+            "priority_score": priority_score,
             "search_source": "active_search_shorts"
         })
+
+    # Ordenar por priority_score (mayor primero)
+    # Canales pequeños con altas vistas aparecen primero
+    valid_shorts.sort(key=lambda v: v["priority_score"], reverse=True)
 
     print(f"\n[fetch_shorts_search] 📊 FILTRADO:")
     print(f"  - Total procesados: {stats['total']}")
@@ -230,6 +314,10 @@ def filter_and_process_shorts(videos, existing_ids, min_score=60):
     print(f"  - No shorts (>60s): {stats['no_short']}")
     print(f"  - Bajo score nicho: {stats['bajo_score']}")
     print(f"  - ✅ Válidos para insertar: {stats['validos']}")
+    print(f"\n[fetch_shorts_search] 📊 PRIORIZACIÓN POR CANAL:")
+    print(f"  - 🟢 Canales PEQUEÑOS (<10K): {stats['por_canal_pequeno']}")
+    print(f"  - 🟡 Canales MEDIANOS (10K-100K): {stats['por_canal_mediano']}")
+    print(f"  - 🔴 Canales GRANDES (>100K): {stats['por_canal_grande']}")
 
     return valid_shorts
 
@@ -311,14 +399,20 @@ def main():
     videos = get_video_details(yt, all_video_ids)
     api_calls += len(all_video_ids)  # videos.list = 1 unidad por video
 
-    # Filtrar por nicho y sin duplicados
-    valid_shorts = filter_and_process_shorts(videos, existing_ids, MIN_NICHO_SCORE)
+    # Obtener suscriptores de canales para priorización
+    channel_ids = [v["snippet"]["channelId"] for v in videos]
+    channel_subs = get_channel_subscribers(yt, channel_ids)
+    api_calls += 1  # channels.list = 1 unidad (procesa hasta 50 canales por request)
+    print(f"[fetch_shorts_search] Suscriptores obtenidos para {len(set(channel_ids))} canales únicos")
+
+    # Filtrar por nicho, sin duplicados y priorizar por tamaño de canal
+    valid_shorts = filter_and_process_shorts(videos, channel_subs, existing_ids, MIN_NICHO_SCORE)
 
     # Insertar en Supabase
     insert_shorts_to_supabase(sb, valid_shorts)
 
-    # Registrar cuota usada
-    total_units = (len(SEARCH_KEYWORDS) * 100) + len(all_video_ids)
+    # Registrar cuota usada (100 por keyword + N videos.list + channels.list)
+    total_units = (len(SEARCH_KEYWORDS) * 100) + len(all_video_ids) + (len(set(channel_ids)) // 50 + 1)
     registrar_uso_cuota("search_shorts", total_units, sb)
     print(f"\n[fetch_shorts_search] 📊 Cuota API usada: {total_units} unidades")
 
