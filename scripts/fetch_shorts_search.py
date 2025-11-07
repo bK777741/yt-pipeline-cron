@@ -257,7 +257,7 @@ def filter_and_process_shorts(videos, channel_subs, existing_ids, min_score=60):
             stats["no_short"] += 1
             continue
 
-        # 3. Filtro de nicho
+        # 3. Filtro de nicho con sistema de dos niveles
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
@@ -265,14 +265,25 @@ def filter_and_process_shorts(videos, channel_subs, existing_ids, min_score=60):
             min_score=min_score
         )
 
-        if not es_relevante:
+        # Obtener vistas para validación social
+        views = int(statistics.get("viewCount", 0))
+
+        # NIVEL 1: Score premium (≥60) - ACEPTAR SIEMPRE
+        if es_relevante:
+            pass  # Score ≥60, calidad premium del nicho
+
+        # NIVEL 2: Score medio (≥50) + Validación social (≥500 vistas) - ACEPTAR
+        elif nicho_score >= 50 and views >= 500:
+            pass  # Score medio con validación social
+
+        # RECHAZAR: Score bajo o sin validación social
+        else:
             stats["bajo_score"] += 1
             continue
 
         # 4. Obtener tamaño del canal y calcular score de prioridad
         channel_id = snippet["channelId"]
         subs = channel_subs.get(channel_id, 0)
-        views = int(statistics.get("viewCount", 0))
 
         # Calcular score de prioridad (canal pequeño + altas vistas = score máximo)
         priority_score = calculate_priority_score(subs, views)

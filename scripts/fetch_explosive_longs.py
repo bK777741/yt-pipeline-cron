@@ -301,6 +301,11 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
         elif edad_dias <= 7 and vph >= 15:
             pass  # Tutoriales recientes con tracción mínima (360 vistas en 24h)
 
+        # PRIORIDAD 4: Video con SCORE PERFECTO DE NICHO (>=65) + VPH mínimo (>=8) - ACEPTAR
+        # Permite tutoriales de ALTA calidad sin restricción de edad
+        elif nicho_score >= 65 and vph >= 8:
+            pass  # Tutoriales premium del nicho (score perfecto) con tracción mínima (192 vistas/día)
+
         # RECHAZAR: Videos antiguos o con VPH muy bajo
         else:
             stats["baja_explosividad"] += 1
