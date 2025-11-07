@@ -81,6 +81,104 @@
 
       "telegram", "discord", "slack", "zoom", "teams",
 
+      "navegador", "browser", "chrome", "firefox", "edge", "brave", "opera", "vivaldi",
+      "safari", "tor browser", "duckduckgo", "arc browser", "floorp", "zen browser",
+      "chrome extensions", "firefox addons", "extensiones chrome", "bloqueador anuncios",
+      "ublock origin", "adblock", "dark reader", "lastpass", "bitwarden",
+
+      "reproductor video", "vlc", "media player", "mpc-hc", "potplayer", "mpv",
+      "kmplayer", "gom player", "smplayer", "plex", "kodi", "jellyfin",
+      "codec pack", "k-lite", "video codecs", "reproducir mkv", "reproducir mp4",
+
+      "reproductor audio", "musica", "spotify", "itunes", "winamp", "foobar2000",
+      "aimp", "musicbee", "clementine", "audacious", "soundcloud", "deezer",
+      "tidal", "amazon music", "youtube music", "apple music", "ecualizador",
+
+      "descargar videos", "youtube downloader", "4k video downloader", "jdownloader",
+      "idm", "internet download manager", "free download manager", "aria2",
+      "yt-dlp", "clipgrab", "tubemate", "videoder", "snaptube",
+
+      "compresor archivos", "winrar", "7zip", "winzip", "peazip", "bandizip",
+      "comprimir archivos", "descomprimir", "extraer archivos", "rar", "zip",
+
+      "limpiador pc", "ccleaner", "glary utilities", "bleachbit", "wise care",
+      "advanced systemcare", "limpiar registro", "archivos temporales", "cache pc",
+
+      "particion disco", "partition wizard", "easeus", "gparted", "diskpart",
+      "aomei", "particionar disco", "formatear usb", "booteable", "rufus", "etcher",
+
+      "grabador pantalla", "obs", "obs studio", "bandicam", "camtasia", "fraps",
+      "nvidia shadowplay", "xbox game bar", "captura pantalla", "screenshot",
+      "lightshot", "greenshot", "sharex", "snipping tool", "screen recorder",
+
+      "lector pdf", "adobe reader", "foxit", "sumatra pdf", "pdf xchange",
+      "nitro pdf", "leer pdf", "editar pdf gratis", "anotar pdf",
+
+      "torrent", "utorrent", "bittorrent", "qbittorrent", "transmission",
+      "deluge", "tixati", "descargar torrents", "torrent seguro",
+
+      "emulador", "bluestacks", "nox", "memu", "ldplayer", "gameloop",
+      "android emulator", "emular android", "jugar android pc",
+
+      "virtualizacion", "virtualbox", "vmware", "hyper-v", "parallels",
+      "maquina virtual", "vm", "virtualizar windows", "virtualizar linux",
+
+      "mensajeria", "whatsapp", "telegram", "discord", "slack", "skype",
+      "zoom", "teams", "signal", "viber", "wechat", "line",
+
+      "administrador tareas", "task manager", "process explorer", "process hacker",
+      "system informer", "hwinfo", "cpu-z", "gpu-z", "hwmonitor", "speccy",
+      "msi afterburner", "temperatura cpu", "uso ram", "monitorear pc",
+
+      "cliente ftp", "filezilla", "winscp", "cyberduck", "total commander",
+      "ftp gratis", "subir archivos ftp", "servidor ftp",
+
+      "contraseñas", "password manager", "bitwarden", "lastpass", "keepass",
+      "1password", "dashlane", "gestionar contraseñas", "generador contraseñas",
+
+      "backup", "respaldo", "copia seguridad", "acronis", "macrium reflect",
+      "clonezilla", "veeam", "respaldar archivos", "imagen sistema",
+
+      "cliente correo", "outlook", "thunderbird", "mailbird", "em client",
+      "windows mail", "configurar correo", "imap", "smtp", "pop3",
+
+      "calendario", "google calendar", "outlook calendar", "notion calendar",
+      "fantastical", "organizador", "agenda digital", "recordatorios",
+
+      "visualizador imagenes", "irfanview", "xnview", "faststone", "imageglass",
+      "photoviewer", "ver fotos", "galeria imagenes", "visor jpg",
+
+      "convertidor", "convertir formato", "handbrake", "ffmpeg", "format factory",
+      "convertir video", "convertir audio", "convertir imagen", "mp4 to mp3",
+      "avi to mp4", "webm to mp4", "heic to jpg", "png to jpg",
+
+      "sincronizar", "sync", "syncthing", "resilio sync", "freefilesync",
+      "sincronizar archivos", "backup sincronizado", "carpetas sincronizadas",
+
+      "teclado", "autohotkey", "pulseway", "sharkeys", "powertoys",
+      "atajos teclado", "macros teclado", "remapear teclas", "key remapper",
+
+      "portapapeles", "clipboard manager", "ditto", "clipx", "copyq",
+      "historial portapapeles", "portapapeles avanzado", "copiar pegar multiple",
+
+      "buscador archivos", "everything", "search everything", "windows search",
+      "buscar archivos rapido", "indexar archivos", "encontrar archivos",
+
+      "notas", "notepad++", "sublime text", "notepad", "evernote", "onenote",
+      "simplenote", "typora", "markdown", "tomar notas", "editor texto",
+
+      "transferir archivos", "localsend", "snapdrop", "sharedrop", "airdrop windows",
+      "enviar archivos wifi", "transferir pc movil", "compartir archivos red",
+
+      "control remoto", "teamviewer", "anydesk", "chrome remote desktop",
+      "ultraviewer", "rustdesk", "escritorio remoto", "controlar pc remoto",
+
+      "terminal", "windows terminal", "powershell", "cmd", "command prompt",
+      "terminal avanzado", "consola windows", "bash windows", "wsl",
+
+      "explorador archivos", "total commander", "free commander", "q-dir",
+      "dual panel", "file explorer alternativo", "administrador archivos",
+
       "google", "gmail", "drive", "docs", "sheets", "chrome", "maps", "fotos",
       "youtube studio", "analytics", "adsense", "search console",
       "problemas gmail", "error gmail", "youtube problemas", "monetizacion youtube",
@@ -232,7 +330,43 @@
       "chatgpt ganar dinero", "ia para freelance", "ia trabajo remoto",
       "ia codigo automatico", "ia excel formulas", "ia power bi",
       "ia traducir documentos", "ia resumir videos", "ia chatpdf gratis",
-      "copilot gratis", "gemini advanced gratis", "claude pro gratis"
+      "copilot gratis", "gemini advanced gratis", "claude pro gratis",
+
+      "chrome mas rapido", "firefox vs chrome", "brave sin anuncios",
+      "opera vpn gratis", "navegador mas seguro", "chrome consumo ram",
+
+      "vlc trucos", "vlc reproducir todo", "vlc streaming", "vlc codec pack",
+      "reproductor video ligero", "potplayer vs vlc", "codecs windows",
+
+      "spotify gratis", "spotify premium gratis", "descargar spotify", "winamp 2025",
+      "reproductor audio sin anuncios", "ecualizador windows", "itunes alternativa",
+
+      "descargar videos youtube gratis", "idm gratis", "jdownloader tutorial",
+      "descargar playlist youtube", "4k video downloader full",
+
+      "winrar sin anuncio", "7zip vs winrar", "comprimir archivos pesados",
+      "comprimir sin perder calidad", "extraer rar gratis",
+
+      "ccleaner seguro", "limpiar pc completo", "optimizar windows gratis",
+      "liberar ram windows", "limpieza profunda pc",
+
+      "rufus booteable", "crear usb booteable", "particionar sin formatear",
+      "clonar disco windows", "formatear usb protegido",
+
+      "obs studio tutorial completo", "bandicam sin marca agua", "grabar pantalla gratis",
+      "obs configuracion perfecta", "shadowplay sin nvidia", "captura ligera",
+
+      "adobe reader alternativa", "pdf gratis sin marca agua", "foxit reader vs adobe",
+      "comprimir pdf sin perder calidad", "unir pdf gratis",
+
+      "utorrent sin virus", "qbittorrent configuracion", "torrent seguro vpn",
+      "descargar torrents anonimo", "cliente torrent mas rapido",
+
+      "bluestacks vs nox", "emulador android ligero", "emular android 32gb ram",
+      "jugar free fire pc", "memu vs ldplayer",
+
+      "virtualbox tutorial", "crear maquina virtual", "instalar windows virtualbox",
+      "vm linux windows", "virtualizar macos"
     ],
 
     "keywords_shorts": [
