@@ -87,12 +87,13 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
     }
 
     # 1. Keywords de oro (valor: 10 puntos c/u, máx 50)
-    # FIX 2025-11-07: Usar word boundary para evitar falsos positivos
-    # "ia" NO debe matchear "Shakira", "familia", etc.
+    # FIX 2025-11-07: Word boundary al inicio pero flexible al final
+    # Esto permite: "tutorial" → "tutorial", "tutoriales", "tutorialito"
+    # Pero evita: "ia" → "Shakira" (porque "ia" requiere inicio de palabra)
     matches_oro = 0
     for keyword in keywords_oro:
-        # Buscar palabra completa (word boundary)
-        pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+        # Word boundary al inicio, flexible al final (permite plurales/sufijos)
+        pattern = r'\b' + re.escape(keyword.lower())
         if re.search(pattern, texto):
             matches_oro += 1
             score += 10
@@ -101,7 +102,7 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
 
     # 2. Keywords de alto valor (bonus 15 puntos c/u, máx 30)
     for keyword in keywords_alto_valor:
-        pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+        pattern = r'\b' + re.escape(keyword.lower())
         if re.search(pattern, texto):
             score += 15
             debug_info["matches_alto_valor"].append(keyword)
@@ -114,6 +115,7 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
 
     # 4. Penalización FUERTE por keywords basura (-50 por keyword)
     for basura in keywords_excluir:
+        # Para exclusión, usar word boundary completo (más estricto)
         pattern = r'\b' + re.escape(basura.lower()) + r'\b'
         if re.search(pattern, texto):
             score -= 50
