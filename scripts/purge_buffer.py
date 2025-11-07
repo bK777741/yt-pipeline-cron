@@ -15,8 +15,7 @@ import time
 import datetime as dt
 from typing import List, Dict, Any, Optional, Tuple, Callable
 
-from supabase import create_client
-from supabase.lib.client_options import ClientOptions
+from supabase import create_client, Client
 
 # Import tolerante del StorageException (cambia entre versiones de supabase-py)
 try:
@@ -54,16 +53,9 @@ def _get_env() -> Tuple[str, str]:
     return url, key
 
 
-def _sb() :
+def _sb() -> Client:
     url, key = _get_env()
-    # CORREGIDO: ClientOptions solo acepta postgrest_client_timeout
-    # storage timeout se configura a nivel de operación individual
-    return create_client(
-        url, key,
-        options=ClientOptions(
-            postgrest_client_timeout=120
-        )
-    )
+    return create_client(url, key)
 
 
 def _retry(fn: Callable[[], Any], what: str):
