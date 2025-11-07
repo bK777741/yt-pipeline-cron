@@ -211,12 +211,33 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
             stats["bajo_score"] += 1
             continue
 
-        # 4. Filtro de explosividad (VPH mínimo para considerar "explosivo")
+        # 4. Sistema de priorización inteligente (explosividad + frescura)
         views = int(statistics.get("viewCount", 0))
         vph = calculate_vph(views, snippet["publishedAt"])
 
-        # Mínimo 100 vph para considerar explosivo (ajustable)
-        if vph < 100:
+        # Calcular edad del video
+        try:
+            pub_date = datetime.fromisoformat(snippet["publishedAt"].replace('Z', '+00:00'))
+            edad_horas = (datetime.now(timezone.utc) - pub_date).total_seconds() / 3600
+            edad_dias = edad_horas / 24
+        except:
+            edad_horas = 999999
+            edad_dias = 999999
+
+        # PRIORIDAD 1: Video EXPLOSIVO (alto VPH) - ACEPTAR
+        if vph >= 100:
+            pass  # Aceptar inmediatamente
+
+        # PRIORIDAD 2: Video FRESCO (<48h) con tracción moderada - ACEPTAR
+        elif edad_horas <= 48 and vph >= 10:
+            pass  # Aceptar como segunda prioridad
+
+        # PRIORIDAD 3: Video RECIENTE (<7 días) con tracción aceptable - ACEPTAR
+        elif edad_dias <= 7 and vph >= 30:
+            pass  # Aceptar contenido reciente estable
+
+        # RECHAZAR: Videos antiguos o sin tracción
+        else:
             stats["baja_explosividad"] += 1
             continue
 
@@ -243,7 +264,7 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
     print(f"  - Duplicados: {stats['duplicados']}")
     print(f"  - Muy cortos (<3 min): {stats['muy_cortos']}")
     print(f"  - Bajo score nicho: {stats['bajo_score']}")
-    print(f"  - Baja explosividad (<100 vph): {stats['baja_explosividad']}")
+    print(f"  - No cumple criterios (antiguo o sin tracción): {stats['baja_explosividad']}")
     print(f"  - ✅ Válidos para insertar: {stats['validos']}")
 
     return valid_longs
@@ -273,8 +294,7 @@ def insert_longs_to_supabase(sb: Client, longs):
                 "duration_sec": long_video["duration_sec"],
                 "format": "long",
                 "similarity": 0.0,
-                "topic_key": "tech_explosive",
-                "region": "SEARCH"
+                "topic_key": "tech_explosive"
             }).execute()
 
             inserted += 1

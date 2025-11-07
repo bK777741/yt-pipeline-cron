@@ -259,8 +259,7 @@ def insert_shorts_to_supabase(sb: Client, shorts):
                 "duration_sec": short["duration_sec"],
                 "format": "short",
                 "similarity": 0.0,
-                "topic_key": "tech_shorts",
-                "region": "SEARCH"
+                "topic_key": "tech_shorts"
             }).execute()
 
             inserted += 1
