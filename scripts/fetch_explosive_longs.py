@@ -112,6 +112,39 @@ def search_explosive_longs(yt, keyword, max_results=50):
         print(f"[ERROR] Búsqueda fallida para '{keyword}': {e}")
         return []
 
+def get_channel_subscribers(yt, channel_ids):
+    """
+    Obtener número de suscriptores de canales
+
+    Costo: 1 unidad API por request (puede procesar hasta 50 canales)
+    """
+    if not channel_ids:
+        return {}
+
+    channel_subs = {}
+    unique_channels = list(set(channel_ids))
+
+    for i in range(0, len(unique_channels), 50):
+        batch = unique_channels[i:i+50]
+
+        try:
+            request = yt.channels().list(
+                part="statistics",
+                id=",".join(batch)
+            )
+            response = request.execute()
+
+            for item in response.get("items", []):
+                channel_id = item["id"]
+                subs = int(item.get("statistics", {}).get("subscriberCount", 0))
+                channel_subs[channel_id] = subs
+
+        except Exception as e:
+            print(f"[WARNING] Error obteniendo suscriptores de canales: {e}")
+            continue
+
+    return channel_subs
+
 def get_video_details(yt, video_ids):
     """
     Obtener detalles de videos
@@ -165,12 +198,38 @@ def calculate_vph(views, published_at):
     except:
         return 0
 
-def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=180):
+def calculate_priority_score(channel_subs, vph):
     """
-    Filtrar videos largos por nicho, relevancia y explosividad
+    Calcular score de prioridad basado en tamaño del canal y VPH
+
+    PRIORIDAD 1: Canal pequeño (<10K) + Alto VPH = Score más alto
+    PRIORIDAD 2: Canal mediano (10K-100K) + Buen VPH = Score medio
+    PRIORIDAD 3: Canal grande (>100K) + Altas vistas = Score bajo
 
     Returns:
-        Lista de videos largos válidos
+        Score de prioridad (mayor = mejor)
+    """
+    score = 0
+
+    # Bonus por tamaño de canal (PEQUEÑO = MÁS PUNTOS)
+    if channel_subs < 10000:
+        score += 1000  # Canal PEQUEÑO - PRIORIDAD MÁXIMA
+    elif channel_subs < 100000:
+        score += 500   # Canal MEDIANO - PRIORIDAD MEDIA
+    else:
+        score += 100   # Canal GRANDE - PRIORIDAD BAJA
+
+    # Agregar VPH al score (explosividad)
+    score += vph
+
+    return score
+
+def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, min_duration=180):
+    """
+    Filtrar videos largos por nicho, relevancia, explosividad y tamaño de canal
+
+    Returns:
+        Lista de videos largos válidos ordenados por prioridad
     """
     valid_longs = []
     stats = {
@@ -179,7 +238,10 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
         "muy_cortos": 0,
         "bajo_score": 0,
         "baja_explosividad": 0,
-        "validos": 0
+        "validos": 0,
+        "por_canal_pequeno": 0,
+        "por_canal_mediano": 0,
+        "por_canal_grande": 0
     }
 
     for video in videos:
@@ -245,14 +307,30 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
             stats["baja_explosividad"] += 1
             continue
 
-        # 5. Video válido - preparar para inserción
+        # 5. Obtener tamaño del canal y calcular score de prioridad
+        channel_id = snippet["channelId"]
+        subs = channel_subs.get(channel_id, 0)
+
+        # Calcular score de prioridad (canal pequeño + alto VPH = score máximo)
+        priority_score = calculate_priority_score(subs, vph)
+
+        # Contar por tipo de canal
+        if subs < 10000:
+            stats["por_canal_pequeno"] += 1
+        elif subs < 100000:
+            stats["por_canal_mediano"] += 1
+        else:
+            stats["por_canal_grande"] += 1
+
+        # 6. Video válido - preparar para inserción
         stats["validos"] += 1
 
         valid_longs.append({
             "video_id": video_id,
             "title": snippet["title"],
-            "channel_id": snippet["channelId"],
+            "channel_id": channel_id,
             "channel_title": snippet["channelTitle"],
+            "channel_subscribers": subs,
             "published_at": snippet["publishedAt"],
             "view_count": views,
             "like_count": int(statistics.get("likeCount", 0)),
@@ -260,8 +338,13 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
             "duration_sec": duration_sec,
             "nicho_score": nicho_score,
             "vph": vph,
+            "priority_score": priority_score,
             "search_source": "active_search_explosive"
         })
+
+    # Ordenar por priority_score (mayor primero)
+    # Canales pequeños con alto VPH aparecen primero
+    valid_longs.sort(key=lambda v: v["priority_score"], reverse=True)
 
     print(f"\n[fetch_explosive_longs] 📊 FILTRADO:")
     print(f"  - Total procesados: {stats['total']}")
@@ -270,6 +353,10 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
     print(f"  - Bajo score nicho: {stats['bajo_score']}")
     print(f"  - No cumple criterios (antiguo o sin tracción): {stats['baja_explosividad']}")
     print(f"  - ✅ Válidos para insertar: {stats['validos']}")
+    print(f"\n[fetch_explosive_longs] 📊 PRIORIZACIÓN POR CANAL:")
+    print(f"  - 🟢 Canales PEQUEÑOS (<10K): {stats['por_canal_pequeno']}")
+    print(f"  - 🟡 Canales MEDIANOS (10K-100K): {stats['por_canal_mediano']}")
+    print(f"  - 🔴 Canales GRANDES (>100K): {stats['por_canal_grande']}")
 
     return valid_longs
 
@@ -345,18 +432,24 @@ def main():
     all_video_ids = list(set(all_video_ids))
     print(f"\n[fetch_explosive_longs] Total videos únicos encontrados: {len(all_video_ids)}")
 
-    # Obtener detalles
+    # Obtener detalles de videos
     videos = get_video_details(yt, all_video_ids)
     api_calls += len(all_video_ids)  # videos.list = 1 unidad por video
 
-    # Filtrar por nicho y explosividad
-    valid_longs = filter_and_process_longs(videos, existing_ids, MIN_NICHO_SCORE, MIN_DURATION_SECONDS)
+    # Obtener suscriptores de canales para priorización
+    channel_ids = [v["snippet"]["channelId"] for v in videos]
+    channel_subs = get_channel_subscribers(yt, channel_ids)
+    api_calls += 1  # channels.list = 1 unidad (procesa hasta 50 canales por request)
+    print(f"[fetch_explosive_longs] Suscriptores obtenidos para {len(set(channel_ids))} canales únicos")
+
+    # Filtrar por nicho, explosividad y priorizar por tamaño de canal
+    valid_longs = filter_and_process_longs(videos, channel_subs, existing_ids, MIN_NICHO_SCORE, MIN_DURATION_SECONDS)
 
     # Insertar en Supabase
     insert_longs_to_supabase(sb, valid_longs)
 
-    # Registrar cuota usada (100 por keyword + N videos.list)
-    total_units = (len(SEARCH_KEYWORDS) * 100) + len(all_video_ids)
+    # Registrar cuota usada (100 por keyword + N videos.list + channels.list)
+    total_units = (len(SEARCH_KEYWORDS) * 100) + len(all_video_ids) + (len(set(channel_ids)) // 50 + 1)
     registrar_uso_cuota("search_explosive", total_units, sb)
     print(f"\n[fetch_explosive_longs] 📊 Cuota API usada: {total_units} unidades")
 
