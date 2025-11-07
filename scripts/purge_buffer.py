@@ -56,11 +56,12 @@ def _get_env() -> Tuple[str, str]:
 
 def _sb() :
     url, key = _get_env()
+    # CORREGIDO: ClientOptions solo acepta postgrest_client_timeout
+    # storage timeout se configura a nivel de operación individual
     return create_client(
         url, key,
         options=ClientOptions(
-            postgrest_client_timeout=120_000,
-            storage_client_timeout=120_000
+            postgrest_client_timeout=120
         )
     )
 
