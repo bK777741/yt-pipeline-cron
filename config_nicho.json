@@ -8,10 +8,78 @@
       "pc", "computadora", "laptop", "windows", "windows 11", "windows 10", "mac", "linux",
 
       "inteligencia artificial", "ia", "ai", "chatgpt", "gemini", "copilot", "claude",
-      "leonardo ai", "midjourney", "stable diffusion", "dall-e", "gpt-4", "llama",
-      "perplexity", "hugging face", "runway", "synthesia", "firefly",
+      "claude ai", "claude sonnet", "claude opus", "anthropic",
 
-      "whatsapp", "telegram", "discord", "slack", "zoom", "teams",
+      "chatgpt 4", "gpt-4", "gpt-4o", "gpt-5", "openai", "chatgpt plus",
+      "chatgpt gratis", "chatgpt español", "chatgpt api", "chatgpt plugins",
+      "chatgpt vision", "chatgpt voice", "chatgpt canvas", "chatgpt avanzado",
+
+      "google ai", "gemini", "gemini pro", "gemini ultra", "bard", "google bard",
+      "gemini advanced", "gemini api", "gemini imagen", "gemini flash",
+
+      "microsoft copilot", "copilot pro", "bing ai", "bing chat", "copilot designer",
+      "copilot github", "copilot windows", "copilot 365", "copilot edge",
+
+      "perplexity", "perplexity ai", "perplexity pro", "phind", "you.com",
+      "character ai", "janitor ai", "replika", "pi ai", "poe",
+
+      "leonardo ai", "midjourney", "midjourney v6", "stable diffusion", "dall-e", "dall-e 3",
+      "firefly", "adobe firefly", "imagen", "ideogram", "flux", "playground ai",
+      "artbreeder", "craiyon", "dreamstudio", "nightcafe", "wombo dream",
+
+      "runway", "runway ml", "pika labs", "kaiber", "gen-2", "gen-3",
+      "synthesia", "heygen", "d-id", "video ia", "avatar ia", "deepfake",
+
+      "elevenlabs", "murf", "play.ht", "voz ia", "clonar voz", "texto a voz ia",
+      "voice cloning", "speech synthesis", "tts ia",
+
+      "suno", "udio", "musica ia", "cancion ia", "beat ia", "soundraw",
+
+      "llama", "llama 2", "llama 3", "mistral", "mixtral", "vicuna",
+      "alpaca", "codellama", "wizardlm", "orca", "falcon",
+
+      "hugging face", "langchain", "llamaindex", "vector database",
+      "embeddings", "fine tuning", "prompt engineering", "tokens",
+
+      "chatbot", "chatbot ia", "voiceflow", "botpress", "dialogflow",
+      "rasa", "wit.ai", "chatbot whatsapp", "chatbot telegram",
+
+      "notion ia", "notion ai", "gamma", "beautiful.ai", "tome", "pitch",
+      "presentaciones ia", "slides ia", "diseño ia",
+
+      "jasper", "copy.ai", "writesonic", "rytr", "contentbot",
+      "redaccion ia", "copywriting ia", "articulos ia", "seo ia",
+
+      "grammarly", "quillbot", "wordtune", "paraphraser", "corrector ia",
+      "traduccion ia", "deepl", "traductor ia",
+
+      "remove.bg", "cleanup.pictures", "upscale ia", "enhancer ia",
+      "restaurar fotos ia", "colorear fotos ia", "remover fondo ia",
+
+      "luma ai", "polycam", "3d scan ia", "nerf", "gaussian splatting",
+      "modelado 3d ia", "textura ia",
+
+      "github copilot", "cursor", "tabnine", "codeium", "replit",
+      "codex", "code llama", "programar con ia", "debug ia",
+
+      "chatpdf", "humata", "pdf ia", "resume ia", "documentos ia",
+      "chatdoc", "pdfgpt", "claude pdf",
+
+      "napkin.ai", "mermaid", "diagrams ia", "flowchart ia",
+      "mindmap ia", "diagramas ia",
+
+      "whatsapp", "whatsapp web", "whatsapp business", "whatsapp plus", "gb whatsapp",
+      "whatsapp trucos", "whatsapp funciones", "whatsapp ocultas", "whatsapp beta",
+      "whatsapp desktop", "whatsapp windows", "whatsapp pc", "whatsapp mac",
+      "whatsapp estados", "whatsapp stickers", "whatsapp grupos", "whatsapp canales",
+      "whatsapp bloqueado", "whatsapp recuperar", "whatsapp backup", "whatsapp sin numero",
+      "whatsapp anonimo", "whatsapp privacidad", "whatsapp seguridad", "whatsapp spam",
+      "whatsapp llamadas", "whatsapp videollamadas", "whatsapp encuestas", "whatsapp comunidades",
+      "whatsapp multi dispositivo", "whatsapp clonar", "whatsapp dos cuentas", "whatsapp simultanneo",
+      "whatsapp mod", "whatsapp apk", "whatsapp transparente", "whatsapp personalizar",
+      "whatsapp mensajes automaticos", "whatsapp bot", "whatsapp api", "whatsapp marketing",
+
+      "telegram", "discord", "slack", "zoom", "teams",
 
       "google", "gmail", "drive", "docs", "sheets", "chrome", "maps", "fotos",
       "youtube studio", "analytics", "adsense", "search console",
@@ -147,7 +215,24 @@
       "acelerar internet", "mejorar conexion", "wifi mas rapido",
 
       "excel avanzado", "macros excel", "power bi tutorial",
-      "programar sin experiencia", "python desde cero", "html basico"
+      "programar sin experiencia", "python desde cero", "html basico",
+
+      "whatsapp trucos 2025", "whatsapp funciones ocultas", "whatsapp secretos",
+      "whatsapp sin aparecer en linea", "whatsapp leer sin visto", "whatsapp estados anonimos",
+      "whatsapp grabar llamadas", "whatsapp video llamada grabar", "whatsapp grupos secretos",
+      "whatsapp recuperar mensajes", "whatsapp mensajes eliminados", "whatsapp backup restaurar",
+      "whatsapp dos numeros", "whatsapp sin sim", "whatsapp sin chip",
+      "whatsapp business automatico", "whatsapp business catalogo", "whatsapp marketing gratis",
+
+      "chatgpt trucos secretos", "chatgpt prompts avanzados", "chatgpt hack 2025",
+      "gemini vs chatgpt", "claude vs chatgpt", "mejor ia 2025",
+      "ia gratis sin registro", "ia mejor que chatgpt", "ia sin limites",
+      "leonardo ai gratis", "midjourney alternativa gratis", "ia imagenes realistas",
+      "ia clonar voz gratis", "ia crear video gratis", "ia presentaciones automaticas",
+      "chatgpt ganar dinero", "ia para freelance", "ia trabajo remoto",
+      "ia codigo automatico", "ia excel formulas", "ia power bi",
+      "ia traducir documentos", "ia resumir videos", "ia chatpdf gratis",
+      "copilot gratis", "gemini advanced gratis", "claude pro gratis"
     ],
 
     "keywords_shorts": [
