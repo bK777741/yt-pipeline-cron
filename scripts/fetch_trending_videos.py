@@ -17,13 +17,25 @@ from postgrest.exceptions import APIError
 # Importar funciones de filtrado por nicho
 # FIX 2025-11-07: Agregar scripts/ al path para que funcione en GitHub Actions
 import sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+scripts_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, scripts_dir)
+
+# DEBUG: Imprimir info del entorno
+print(f"[DEBUG] __file__ = {__file__}")
+print(f"[DEBUG] scripts_dir = {scripts_dir}")
+print(f"[DEBUG] sys.path[0] = {sys.path[0]}")
+print(f"[DEBUG] Buscando nicho_utils.py en: {os.path.join(scripts_dir, 'nicho_utils.py')}")
+print(f"[DEBUG] nicho_utils.py existe? {os.path.exists(os.path.join(scripts_dir, 'nicho_utils.py'))}")
 
 try:
     from nicho_utils import es_video_relevante, registrar_uso_cuota
     NICHO_FILTERING_ENABLED = True
+    print(f"[SUCCESS] ✓ nicho_utils.py importado correctamente")
+    print(f"[SUCCESS] ✓ NICHO_FILTERING_ENABLED = True")
 except ImportError as e:
-    print(f"[WARNING] nicho_utils.py no encontrado - Filtrado por nicho deshabilitado: {e}")
+    print(f"[ERROR] ✗ nicho_utils.py no encontrado - Filtrado por nicho DESHABILITADO")
+    print(f"[ERROR] ✗ ImportError: {e}")
+    print(f"[ERROR] ✗ NICHO_FILTERING_ENABLED = False")
     NICHO_FILTERING_ENABLED = False
 
 # Configuración global
