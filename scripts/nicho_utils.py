@@ -22,9 +22,14 @@ def cargar_config() -> Dict:
     """Carga la configuración del nicho"""
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            config = json.load(f)
+            print(f"[SUCCESS] ✓ config_nicho.json cargado desde: {CONFIG_PATH}")
+            print(f"[SUCCESS] ✓ Keywords oro: {len(config['nicho']['keywords_oro'])}")
+            print(f"[SUCCESS] ✓ Keywords excluir: {len(config['nicho']['keywords_excluir'])}")
+            return config
     except FileNotFoundError:
-        print(f"[WARNING] config_nicho.json no encontrado en {CONFIG_PATH}")
+        print(f"[ERROR] ✗ config_nicho.json NO encontrado en: {CONFIG_PATH}")
+        print(f"[ERROR] ✗ Usando configuracion DEFAULT (ULTRA PERMISIVA)")
         return get_config_default()
 
 def get_config_default() -> Dict:
@@ -109,7 +114,18 @@ def es_video_relevante(titulo: str, descripcion: str = "",
         (es_relevante, score)
     """
     score = calcular_relevancia_nicho(titulo, descripcion, category_id)
-    return score >= min_score, score
+    es_relevante = score >= min_score
+
+    # DEBUG: Log primeros 10 videos evaluados
+    if not hasattr(es_video_relevante, '_debug_count'):
+        es_video_relevante._debug_count = 0
+
+    if es_video_relevante._debug_count < 10:
+        status = "PASS ✓" if es_relevante else "REJECT ✗"
+        print(f"[DEBUG NICHO] [{status}] score={score:3d} (min={min_score}) | {titulo[:60]}")
+        es_video_relevante._debug_count += 1
+
+    return es_relevante, score
 
 # ============================================================================
 # DETECCIÓN DE VIDEOS "MINA DE ORO"
