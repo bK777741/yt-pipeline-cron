@@ -294,10 +294,16 @@ def main():
     creds, supabase_url, supabase_key = load_env()
     yt, sb = init_clients(creds, supabase_url, supabase_key)
 
-    # Verificar frecuencia (cada 3 días)
-    if not debe_ejecutarse_hoy("fetch_explosive_longs", sb):
-        print("[fetch_explosive_longs] ⏭️ No debe ejecutarse hoy (frecuencia: cada 3 días)")
-        sys.exit(0)
+    # Verificar si se fuerza ejecución (para testing)
+    force_execution = os.getenv("FORCE_EXECUTION", "false").lower() == "true"
+
+    if force_execution:
+        print("[fetch_explosive_longs] ⚡ FORCE_EXECUTION=true - Ejecutando sin verificar frecuencia")
+    else:
+        # Verificar frecuencia (cada 3 días)
+        if not debe_ejecutarse_hoy("fetch_explosive_longs", sb):
+            print("[fetch_explosive_longs] ⏭️ No debe ejecutarse hoy (frecuencia: cada 3 días)")
+            sys.exit(0)
 
     # Obtener videos existentes
     existing_ids = get_existing_video_ids(sb)
