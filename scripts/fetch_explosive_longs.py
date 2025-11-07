@@ -224,19 +224,23 @@ def filter_and_process_longs(videos, existing_ids, min_score=60, min_duration=18
             edad_horas = 999999
             edad_dias = 999999
 
-        # PRIORIDAD 1: Video EXPLOSIVO (alto VPH) - ACEPTAR
-        if vph >= 100:
-            pass  # Aceptar inmediatamente (viral/explosivo)
+        # OBJETIVO: Videos que lleguen a 1000 vistas en 5-6 horas (166-200 VPH)
+        # SOLO videos EXPLOSIVOS desde el inicio, NO lentos/estables
 
-        # PRIORIDAD 2: Video FRESCO (<48h) con tracción típica de tutoriales - ACEPTAR
-        elif edad_horas <= 48 and vph >= 15:
-            pass  # Aceptar videos nuevos con tracción decente (mín 15 vph)
+        # PRIORIDAD 1: Video MUY EXPLOSIVO (>=150 VPH) - ACEPTAR
+        if vph >= 150:
+            pass  # Videos que llegan a 1000 vistas en <7h (IDEAL)
 
-        # PRIORIDAD 3: Video RECIENTE (<7 días) con tracción estable - ACEPTAR
-        elif edad_dias <= 7 and vph >= 25:
-            pass  # Aceptar contenido reciente con VPH típico de tutoriales (25-100)
+        # PRIORIDAD 2: Video EXPLOSIVO MODERADO (<24h + VPH >= 100) - ACEPTAR
+        elif edad_horas <= 24 and vph >= 100:
+            pass  # Videos nuevos con explosión fuerte (1000 vistas en 10h)
 
-        # RECHAZAR: Videos con VPH < 15 (muy bajo) o antiguos
+        # PRIORIDAD 3: Video EXPLOSIVO ACEPTABLE (<48h + VPH >= 80) - ACEPTAR
+        elif edad_horas <= 48 and vph >= 80:
+            pass  # Videos frescos con buen ritmo explosivo
+
+        # RECHAZAR: Videos lentos/estables (aunque tengan días de antigüedad)
+        # Ejemplo: 500 vistas en 10h después de 5 días = 50 VPH → RECHAZAR
         else:
             stats["baja_explosividad"] += 1
             continue
