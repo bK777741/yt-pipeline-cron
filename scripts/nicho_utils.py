@@ -76,33 +76,58 @@ def calcular_relevancia_nicho(titulo: str, descripcion: str = "",
     keywords_excluir = nicho_config.get("keywords_excluir", [])
     categorias_permitidas = nicho_config.get("categorias_youtube_permitidas", [])
 
+    # DEBUG: Tracking
+    debug_info = {
+        "matches_oro": [],
+        "matches_alto_valor": [],
+        "matches_basura": [],
+        "bonus_categoria": 0
+    }
+
     # 1. Keywords de oro (valor: 10 puntos c/u, máx 50)
     matches_oro = 0
     for keyword in keywords_oro:
         if keyword.lower() in texto:
             matches_oro += 1
             score += 10
+            debug_info["matches_oro"].append(keyword)
     score = min(score, 50)  # Cap en 50 por keywords oro
 
     # 2. Keywords de alto valor (bonus 15 puntos c/u, máx 30)
     for keyword in keywords_alto_valor:
         if keyword.lower() in texto:
             score += 15
+            debug_info["matches_alto_valor"].append(keyword)
     score = min(score, 80)  # Cap temporal en 80
 
     # 3. Bonus por categoría correcta (20 puntos)
     if category_id and category_id in categorias_permitidas:
         score += 20
+        debug_info["bonus_categoria"] = 20
 
     # 4. Penalización FUERTE por keywords basura (-50 por keyword)
     for basura in keywords_excluir:
         if basura.lower() in texto:
             score -= 50
+            debug_info["matches_basura"].append(basura)
 
     # 5. Normalizar a rango 0-100
-    score = max(0, min(100, score))
+    score_final = max(0, min(100, score))
 
-    return score
+    # DEBUG: Log scoring detallado para videos con score >= 50 (los sospechosos)
+    if not hasattr(calcular_relevancia_nicho, '_debug_count'):
+        calcular_relevancia_nicho._debug_count = 0
+
+    if calcular_relevancia_nicho._debug_count < 5 and score_final >= 50:
+        print(f"[DEBUG SCORING] titulo='{titulo[:50]}'")
+        print(f"  - Keywords oro ({len(debug_info['matches_oro'])}): {debug_info['matches_oro'][:5]}")
+        print(f"  - Keywords alto valor ({len(debug_info['matches_alto_valor'])}): {debug_info['matches_alto_valor'][:3]}")
+        print(f"  - Keywords basura ({len(debug_info['matches_basura'])}): {debug_info['matches_basura']}")
+        print(f"  - Bonus categoria: {debug_info['bonus_categoria']} (cat_id={category_id})")
+        print(f"  - Score FINAL: {score_final}")
+        calcular_relevancia_nicho._debug_count += 1
+
+    return score_final
 
 def es_video_relevante(titulo: str, descripcion: str = "",
                        category_id: Optional[int] = None,
