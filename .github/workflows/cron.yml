@@ -1164,12 +1164,12 @@ jobs:
   # PASO 15: OBTENER VIDEOS EN TENDENCIA
   # =====================================================================================
   fetch_trending_videos:
-    name: "PASO 17: Obtener Videos en Tendencia (02:20 Lima)"
+    name: "PASO 17: [DESHABILITADO] Obtener Videos en Tendencia (02:20 Lima)"
     runs-on: ubuntu-latest
     continue-on-error: true
-    if: |
-      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_trending_videos')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '20 7 * * *')
+    # DESHABILITADO 2025-11-07: Reemplazado por búsqueda activa (fetch_shorts_search + fetch_explosive_longs)
+    # Trending API solo devuelve basura (música, gaming, deportes) - NO tutoriales tech
+    if: false
     env:
       REGION_CODES: "PE,MX,AR,CO,CL,ES,US,GB,IN,BR,PT"
       ALLOWED_LANGS: "es,en,hi,pt"

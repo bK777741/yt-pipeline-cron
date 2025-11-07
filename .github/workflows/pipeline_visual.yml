@@ -537,10 +537,11 @@ jobs:
           python ${{ steps.pydir.outputs.PYDIR }}/fetch_monetization_metrics.py
 
   visual_fetch_trending_videos:
-    name: "VISUAL · PASO 5e: Obtener Videos en Tendencia"
+    name: "VISUAL · PASO 5e: [DESHABILITADO] Obtener Videos en Tendencia"
     runs-on: ubuntu-latest
     needs: [visual_fetch_monetization_metrics]
-    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    # DESHABILITADO 2025-11-07: Reemplazado por búsqueda activa
+    if: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
