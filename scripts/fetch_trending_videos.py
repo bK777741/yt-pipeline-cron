@@ -15,11 +15,15 @@ from supabase import create_client, Client
 from postgrest.exceptions import APIError
 
 # Importar funciones de filtrado por nicho
+# FIX 2025-11-07: Agregar scripts/ al path para que funcione en GitHub Actions
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 try:
     from nicho_utils import es_video_relevante, registrar_uso_cuota
     NICHO_FILTERING_ENABLED = True
-except ImportError:
-    print("[WARNING] nicho_utils.py no encontrado - Filtrado por nicho deshabilitado")
+except ImportError as e:
+    print(f"[WARNING] nicho_utils.py no encontrado - Filtrado por nicho deshabilitado: {e}")
     NICHO_FILTERING_ENABLED = False
 
 # Configuración global

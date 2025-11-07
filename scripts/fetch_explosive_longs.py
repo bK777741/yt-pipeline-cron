@@ -16,11 +16,14 @@ from googleapiclient.discovery import build
 from supabase import create_client, Client
 
 # Importar utilidades de nicho
+# FIX 2025-11-07: Agregar scripts/ al path para que funcione en GitHub Actions
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 try:
     from nicho_utils import es_video_relevante, registrar_uso_cuota, debe_ejecutarse_hoy
     NICHO_FILTERING_ENABLED = True
-except ImportError:
-    print("[ERROR] nicho_utils.py requerido para este script")
+except ImportError as e:
+    print(f"[ERROR] nicho_utils.py requerido para este script: {e}")
     sys.exit(1)
 
 # Keyword para búsqueda de videos largos explosivos
