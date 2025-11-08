@@ -305,6 +305,7 @@ def filter_and_process_shorts(videos, channel_subs, existing_ids, min_score=60):
             "channel_id": channel_id,
             "channel_title": snippet["channelTitle"],
             "channel_subscribers": subs,
+            "category_id": snippet.get("categoryId"),  # FIX 2025-11-08: Agregar categoría
             "published_at": snippet["publishedAt"],
             "view_count": views,
             "like_count": int(statistics.get("likeCount", 0)),
@@ -351,6 +352,8 @@ def insert_shorts_to_supabase(sb: Client, shorts):
                 "title": short["title"],
                 "channel_id": short["channel_id"],
                 "channel_title": short["channel_title"],
+                "channel_subscribers": short["channel_subscribers"],  # FIX 2025-11-08: Agregar suscriptores
+                "category_id": short.get("category_id"),  # FIX 2025-11-08: Agregar categoría
                 "published_at": short["published_at"],
                 "view_count": short["view_count"],
                 "like_count": short["like_count"],

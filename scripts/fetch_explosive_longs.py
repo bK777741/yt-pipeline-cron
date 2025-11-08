@@ -346,6 +346,7 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             "channel_id": channel_id,
             "channel_title": snippet["channelTitle"],
             "channel_subscribers": subs,
+            "category_id": snippet.get("categoryId"),  # FIX 2025-11-08: Agregar categoría
             "published_at": snippet["publishedAt"],
             "view_count": views,
             "like_count": int(statistics.get("likeCount", 0)),
@@ -393,6 +394,8 @@ def insert_longs_to_supabase(sb: Client, longs):
                 "title": long_video["title"],
                 "channel_id": long_video["channel_id"],
                 "channel_title": long_video["channel_title"],
+                "channel_subscribers": long_video["channel_subscribers"],  # FIX 2025-11-08: Agregar suscriptores
+                "category_id": long_video.get("category_id"),  # FIX 2025-11-08: Agregar categoría
                 "published_at": long_video["published_at"],
                 "view_count": long_video["view_count"],
                 "like_count": long_video["like_count"],
