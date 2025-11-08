@@ -314,9 +314,10 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             "search_source": "active_search_explosive"
         })
 
-    # Ordenar por VIEW_COUNT (más vistas primero)
+    # Ordenar por VPH (viralidad ACTUAL, no vistas acumuladas)
+    # Videos que están EXPLOTANDO AHORA aparecen primero
     # El usuario evalúa manualmente la calidad
-    valid_longs.sort(key=lambda v: v["view_count"], reverse=True)
+    valid_longs.sort(key=lambda v: v["vph"], reverse=True)
 
     print(f"\n[fetch_explosive_longs] 📊 FILTRADO SIMPLIFICADO:")
     print(f"  - Total procesados: {stats['total']}")
@@ -328,7 +329,7 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
     print(f"  - 🟢 Canales PEQUEÑOS (<10K): {stats['por_canal_pequeno']}")
     print(f"  - 🟡 Canales MEDIANOS (10K-100K): {stats['por_canal_mediano']}")
     print(f"  - 🔴 Canales GRANDES (>100K): {stats['por_canal_grande']}")
-    print(f"\n[fetch_explosive_longs] 📊 Ordenados por VISTAS (más visto primero)")
+    print(f"\n[fetch_explosive_longs] 🔥 Ordenados por VPH (viralidad ACTUAL - más explosivo primero)")
 
     return valid_longs
 
