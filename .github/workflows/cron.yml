@@ -1266,11 +1266,9 @@ jobs:
   # PASO 16: OBTENER TENDENCIAS DE BÚSQUEDA
   # =====================================================================================
   fetch_search_trends:
-    name: "PASO 19: Obtener Tendencias de Búsqueda (02:30 Lima)"
+    name: "PASO 19: Obtener Tendencias de Búsqueda (02:30 Lima) - DESHABILITADO"
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && (inputs.only == 'fetch_search_trends' || inputs.only == '')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '30 7 * * *')
+    if: false  # DESHABILITADO 2025-11-08: Trending API solo devuelve basura (iPhone, Samsung, PS5, etc.)
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

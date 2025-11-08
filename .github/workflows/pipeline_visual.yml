@@ -609,10 +609,10 @@ jobs:
         run: python ${{ steps.pydir.outputs.PYDIR }}/refine_trending_with_niche.py
 
   visual_fetch_search_trends:
-    name: "VISUAL · PASO 5f: Obtener Tendencias de Búsqueda"
+    name: "VISUAL · PASO 5f: Obtener Tendencias de Búsqueda - DESHABILITADO"
     runs-on: ubuntu-latest
     needs: [visual_refine_trending_with_niche]
-    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
+    if: false  # DESHABILITADO 2025-11-08: Trending API solo devuelve basura
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
