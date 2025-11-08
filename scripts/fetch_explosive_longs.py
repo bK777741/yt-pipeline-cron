@@ -35,7 +35,7 @@ SEARCH_KEYWORDS = [
     "tutorial ia 2025"
 ]
 MAX_RESULTS_PER_KEYWORD = 20  # Menos por keyword porque son videos largos
-MIN_NICHO_SCORE = 60  # FIX: Aumentar de 15 a 60 para máxima calidad
+MIN_NICHO_SCORE = 50  # FIX 2025-11-08: Cambiar de 60 a 50 para capturar score medio con explosividad
 MIN_DURATION_SECONDS = 180  # Mínimo 3 minutos para considerar "largo"
 
 def load_env():
