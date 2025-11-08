@@ -226,10 +226,16 @@ def calculate_priority_score(channel_subs, vph):
 
 def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, min_duration=180):
     """
-    Filtrar videos largos por nicho, relevancia, explosividad y tamaño de canal
+    Filtrar videos largos SOLO por nicho y ordenar por vistas
+
+    ESTRATEGIA SIMPLIFICADA (2025-11-08):
+    - Solo aplicar filtro de nicho (score >= 50)
+    - Ordenar por view_count (más vistas primero)
+    - Usuario evalúa manualmente cuáles usar
+    - NO aplicar filtros de VPH/edad (tutoriales no siempre explotan rápido)
 
     Returns:
-        Lista de videos largos válidos ordenados por prioridad
+        Lista de videos largos válidos ordenados por vistas (mayor primero)
     """
     valid_longs = []
     stats = {
@@ -237,7 +243,6 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
         "duplicados": 0,
         "muy_cortos": 0,
         "bajo_score": 0,
-        "baja_explosividad": 0,
         "validos": 0,
         "por_canal_pequeno": 0,
         "por_canal_mediano": 0,
@@ -261,7 +266,7 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             stats["muy_cortos"] += 1
             continue
 
-        # 3. Filtro de nicho (calcular score, pero no rechazar todavía)
+        # 3. ÚNICO FILTRO: Relevancia de nicho (score >= 50)
         es_relevante, nicho_score = es_video_relevante(
             snippet["title"],
             snippet.get("description", ""),
@@ -269,67 +274,19 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             min_score=min_score
         )
 
-        # Si score < 50, rechazar inmediatamente (muy bajo)
+        # Si score < 50, rechazar inmediatamente (no es del nicho)
         if nicho_score < 50:
             stats["bajo_score"] += 1
             continue
 
-        # 4. Sistema de priorización inteligente (explosividad + frescura)
+        # 4. Video PASA - preparar para inserción
         views = int(statistics.get("viewCount", 0))
         vph = calculate_vph(views, snippet["publishedAt"])
 
-        # Calcular edad del video
-        try:
-            pub_date = datetime.fromisoformat(snippet["publishedAt"].replace('Z', '+00:00'))
-            edad_horas = (datetime.now(timezone.utc) - pub_date).total_seconds() / 3600
-            edad_dias = edad_horas / 24
-        except:
-            edad_horas = 999999
-            edad_dias = 999999
-
-        # OBJETIVO: Balance entre explosividad y calidad de tutoriales
-        # Tutoriales de calidad no siempre tienen VPH altísimo al inicio
-
-        # PRIORIDAD 1: Video EXPLOSIVO (VPH >= 100) - ACEPTAR SIEMPRE
-        if vph >= 100:
-            pass  # Videos verdaderamente explosivos (1000 vistas en 10h)
-
-        # PRIORIDAD 2: Video FRESCO (<48h + VPH >= 30) - ACEPTAR
-        elif edad_horas <= 48 and vph >= 30:
-            pass  # Tutoriales frescos con tracción decente (720 vistas en 24h)
-
-        # PRIORIDAD 3: Video RECIENTE (<7 días + VPH >= 15) - ACEPTAR
-        elif edad_dias <= 7 and vph >= 15:
-            pass  # Tutoriales recientes con tracción mínima (360 vistas en 24h)
-
-        # PRIORIDAD 4: Video con SCORE PERFECTO DE NICHO (>=65) + VPH mínimo (>=8) - ACEPTAR
-        # Permite tutoriales de ALTA calidad sin restricción de edad
-        elif nicho_score >= 65 and vph >= 8:
-            pass  # Tutoriales premium del nicho (score perfecto) con tracción mínima (192 vistas/día)
-
-        # PRIORIDAD 5: Video con SCORE MEDIO (50-59) + VPH alto (>=25) - ACEPTAR
-        # Permite tutoriales de calidad media con explosividad comprobada
-        elif 50 <= nicho_score < 60 and vph >= 25:
-            pass  # Score medio pero con tracción fuerte (600 vistas/día)
-
-        # PRIORIDAD 6: Video con SCORE PREMIUM (>=60) SIN restricción de VPH - ACEPTAR
-        # Tutoriales de alta calidad del nicho pasan siempre
-        elif nicho_score >= 60:
-            pass  # Score premium del nicho, pasa sin importar VPH
-
-        # RECHAZAR: Videos con score bajo o sin tracción suficiente
-        else:
-            stats["baja_explosividad"] += 1
-            continue
-
-        # 5. Obtener tamaño del canal y calcular score de prioridad
         channel_id = snippet["channelId"]
         subs = channel_subs.get(channel_id, 0)
 
-        # Calcular score de prioridad (canal pequeño + alto VPH = score máximo)
-        priority_score = calculate_priority_score(subs, vph)
-
-        # Contar por tipo de canal
+        # Contar por tipo de canal (para estadísticas)
         if subs < 10000:
             stats["por_canal_pequeno"] += 1
         elif subs < 100000:
@@ -337,7 +294,6 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
         else:
             stats["por_canal_grande"] += 1
 
-        # 6. Video válido - preparar para inserción
         stats["validos"] += 1
 
         valid_longs.append({
@@ -346,7 +302,7 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             "channel_id": channel_id,
             "channel_title": snippet["channelTitle"],
             "channel_subscribers": subs,
-            "category_id": snippet.get("categoryId"),  # FIX 2025-11-08: Agregar categoría
+            "category_id": snippet.get("categoryId"),
             "published_at": snippet["publishedAt"],
             "view_count": views,
             "like_count": int(statistics.get("likeCount", 0)),
@@ -354,25 +310,25 @@ def filter_and_process_longs(videos, channel_subs, existing_ids, min_score=60, m
             "duration_sec": duration_sec,
             "nicho_score": nicho_score,
             "vph": vph,
-            "priority_score": priority_score,
+            "priority_score": views,  # Usar vistas como prioridad
             "search_source": "active_search_explosive"
         })
 
-    # Ordenar por priority_score (mayor primero)
-    # Canales pequeños con alto VPH aparecen primero
-    valid_longs.sort(key=lambda v: v["priority_score"], reverse=True)
+    # Ordenar por VIEW_COUNT (más vistas primero)
+    # El usuario evalúa manualmente la calidad
+    valid_longs.sort(key=lambda v: v["view_count"], reverse=True)
 
-    print(f"\n[fetch_explosive_longs] 📊 FILTRADO:")
+    print(f"\n[fetch_explosive_longs] 📊 FILTRADO SIMPLIFICADO:")
     print(f"  - Total procesados: {stats['total']}")
     print(f"  - Duplicados: {stats['duplicados']}")
     print(f"  - Muy cortos (<3 min): {stats['muy_cortos']}")
-    print(f"  - Bajo score nicho: {stats['bajo_score']}")
-    print(f"  - No cumple criterios (antiguo o sin tracción): {stats['baja_explosividad']}")
+    print(f"  - Bajo score nicho (<50): {stats['bajo_score']}")
     print(f"  - ✅ Válidos para insertar: {stats['validos']}")
-    print(f"\n[fetch_explosive_longs] 📊 PRIORIZACIÓN POR CANAL:")
+    print(f"\n[fetch_explosive_longs] 📊 DISTRIBUCIÓN POR CANAL:")
     print(f"  - 🟢 Canales PEQUEÑOS (<10K): {stats['por_canal_pequeno']}")
     print(f"  - 🟡 Canales MEDIANOS (10K-100K): {stats['por_canal_mediano']}")
     print(f"  - 🔴 Canales GRANDES (>100K): {stats['por_canal_grande']}")
+    print(f"\n[fetch_explosive_longs] 📊 Ordenados por VISTAS (más visto primero)")
 
     return valid_longs
 
