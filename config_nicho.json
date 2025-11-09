@@ -492,11 +492,11 @@
         "porcentaje": 3.4,
         "descripcion": "Búsqueda activa de shorts virales",
         "prioridad": "alta",
-        "frecuencia": "cada_3_dias",
+        "frecuencia": "cada_2_dias",
         "max_keywords": 3,
         "max_videos_per_keyword": 50,
-        "costo_promedio_diario": 113,
-        "nota": "340÷3 = 113 unidades/día promedio"
+        "costo_promedio_diario": 170,
+        "nota": "340÷2 = 170 unidades/día promedio"
       },
 
       "fetch_explosive_longs": {
@@ -504,11 +504,11 @@
         "porcentaje": 1.5,
         "descripcion": "Búsqueda activa de videos largos explosivos",
         "prioridad": "alta",
-        "frecuencia": "cada_3_dias",
+        "frecuencia": "cada_2_dias",
         "max_results": 50,
         "min_vph": 100,
-        "costo_promedio_diario": 50,
-        "nota": "150÷3 = 50 unidades/día promedio"
+        "costo_promedio_diario": 75,
+        "nota": "150÷2 = 75 unidades/día promedio"
       },
 
       "monitor_youtube_updates": {

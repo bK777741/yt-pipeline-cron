@@ -470,7 +470,7 @@ def debe_ejecutarse_hoy(nombre_script: str, sb_client=None) -> bool:
 
     if frecuencia == "diaria":
         return True
-    elif frecuencia == "cada_3_dias":
+    elif frecuencia == "cada_2_dias":
         # FIX: Usar watermarks para verificar última ejecución
         if sb_client:
             try:
@@ -487,7 +487,7 @@ def debe_ejecutarse_hoy(nombre_script: str, sb_client=None) -> bool:
                     now_utc = datetime.now(tz.utc)
                     dias_desde_ultima = (now_utc - last_run).days
                     print(f"[DEBUG] {nombre_script}: última ejecución hace {dias_desde_ultima} días")
-                    return dias_desde_ultima >= 3
+                    return dias_desde_ultima >= 2
                 else:
                     # Primera ejecución
                     return True
@@ -497,7 +497,7 @@ def debe_ejecutarse_hoy(nombre_script: str, sb_client=None) -> bool:
         else:
             # Fallback a lógica anterior si no hay cliente Supabase
             # Usar día del año para distribuir mejor
-            return (datetime.now().timetuple().tm_yday % 3) == 0
+            return (datetime.now().timetuple().tm_yday % 2) == 0
     elif frecuencia == "semanal":
         # Solo lunes
         return datetime.now().weekday() == 0

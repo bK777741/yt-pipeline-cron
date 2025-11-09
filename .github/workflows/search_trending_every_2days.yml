@@ -1,14 +1,14 @@
-name: 🔍 Búsqueda Activa Trending (Cada 3 Días)
+name: 🔍 Búsqueda Activa Trending (Cada 2 Días)
 
 on:
   schedule:
-    # Ejecutar cada 3 días a las 06:00 UTC
-    - cron: '0 6 */3 * *'
+    # Ejecutar cada 2 días a las 06:00 UTC
+    - cron: '0 6 */2 * *'
 
   workflow_dispatch:  # Permitir ejecución manual
     inputs:
       force:
-        description: 'Forzar ejecución (ignorar límite de 3 días)'
+        description: 'Forzar ejecución (ignorar límite de 2 días)'
         required: false
         default: 'false'
         type: choice
