@@ -178,10 +178,10 @@ jobs:
             Revisa los logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   # =====================================================================================
-  # PASO 2: IMPORTAR SUBTÍTULOS
+  # PASO 2: CAPTURAR TRANSCRIPCIONES (30 VIDEOS/DÍA - NUEVO SISTEMA)
   # =====================================================================================
   import_captions:
-    name: "PASO 2: Importar Subtítulos (00:10 Lima)"
+    name: "PASO 2: Capturar Transcripciones 30/día (00:10 Lima)"
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_captions')) ||
@@ -237,7 +237,7 @@ jobs:
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-            python ${{ steps.pydir.outputs.PYDIR }}/import_captions.py
+            python ${{ steps.pydir.outputs.PYDIR }}/captura_subtitulos_github.py
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
