@@ -82,8 +82,8 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           echo "🔄 Procesando captions → scripts..."
-          cd "YOUTUBE ORIGENES"
-          python process_captions_to_scripts.py 2>&1 | tee ../processing_log.txt
+          cd "scripts/gui"
+          python process_captions_to_scripts.py 2>&1 | tee ../../processing_log.txt
           echo "process_exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Entrenar modelo GUI
@@ -94,8 +94,8 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           echo "🧠 Entrenando modelo GUI..."
-          cd "YOUTUBE ORIGENES"
-          python train_gui_model.py 2>&1 | tee ../training_log.txt
+          cd "scripts/gui"
+          python train_gui_model.py 2>&1 | tee ../../training_log.txt
 
           # Guardar exit code
           echo "exit_code=$?" >> $GITHUB_OUTPUT

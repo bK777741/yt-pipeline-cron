@@ -1,0 +1,155 @@
+# .github/workflows/purge_old_scripts.yml
+# PURGA AUTOMATICA DE GUIONES ANTIGUOS (> 6 meses)
+# Se ejecuta el dia 27 de cada mes (antes de entrenamientos)
+
+name: GUI - Purga Guiones Antiguos
+
+concurrency:
+  group: purge-old-scripts
+  cancel-in-progress: false
+
+env:
+  TZ: America/Lima
+  PYTHON_VERSION: "3.11"
+
+on:
+  # Dia 27 de cada mes a las 3AM
+  schedule:
+    - cron: "0 3 27 * *"
+
+  # Manual dispatch para testing
+  workflow_dispatch:
+
+jobs:
+  purge_scripts:
+    name: "Purgar Guiones > 6 meses"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install supabase python-dotenv
+
+      - name: Verificar dataset antes de purga
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "📊 Estado ANTES de purga..."
+          python -c "
+          import os
+          from datetime import datetime, timedelta
+          from supabase import create_client
+          sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+
+          # Total guiones
+          result = sb.table('video_scripts').select('*', count='exact').execute()
+          total = len(result.data)
+
+          # Guiones antiguos (> 6 meses)
+          fecha_limite = datetime.now() - timedelta(days=180)
+          result_old = sb.table('video_scripts').select('*').lt('processed_at', fecha_limite.isoformat()).execute()
+          antiguos = len(result_old.data)
+
+          print(f'Total guiones: {total}')
+          print(f'Guiones > 6 meses: {antiguos}')
+          print(f'Guiones recientes: {total - antiguos}')
+          "
+
+      - name: Ejecutar purga automatica
+        id: purge
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd "scripts/gui"
+          python purge_old_scripts.py 2>&1 | tee ../../purge_log.txt
+
+          # Guardar exit code
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Verificar resultado
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "📊 Estado DESPUES de purga..."
+          python -c "
+          import os
+          from datetime import datetime
+          from supabase import create_client
+          sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+
+          # Total guiones restantes
+          result = sb.table('video_scripts').select('*', count='exact').execute()
+          total = len(result.data)
+
+          # Guion mas antiguo
+          result_oldest = sb.table('video_scripts').select('processed_at').order('processed_at').limit(1).execute()
+          if result_oldest.data:
+              oldest = result_oldest.data[0]['processed_at']
+              print(f'Total guiones restantes: {total}')
+              print(f'Guion mas antiguo: {oldest[:10]}')
+              print(f'Ventana temporal: Ultimos 6 meses')
+          else:
+              print(f'Total guiones restantes: {total}')
+          "
+
+      - name: Crear artifact con logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: purge-logs-${{ github.run_number }}
+          path: purge_log.txt
+          retention-days: 30
+
+      - name: Resumen final
+        if: always()
+        run: |
+          echo "=================================================="
+          echo "RESUMEN DE PURGA AUTOMATICA"
+          echo "=================================================="
+          echo ""
+          echo "Fecha: $(date +%Y-%m-%d\ %H:%M:%S)"
+          echo "Workflow Run: ${{ github.run_number }}"
+          echo ""
+
+          if [ "${{ steps.purge.outputs.exit_code }}" == "0" ]; then
+            echo "Estado: ✅ EXITOSO"
+            echo ""
+            echo "RESULTADO:"
+            echo "- Guiones antiguos (> 6 meses) eliminados"
+            echo "- Solo se mantienen guiones recientes"
+            echo "- Modelo se mantendra actualizado"
+            echo ""
+            echo "VENTAJAS:"
+            echo "- YouTube cambia constantemente"
+            echo "- Algoritmo evoluciona"
+            echo "- Patrones viejos no garantizan exito actual"
+            echo "- Modelo aprende solo de datos relevantes"
+          else
+            echo "Estado: ❌ ERROR"
+            echo ""
+            echo "ACCION:"
+            echo "- Revisar logs de purga"
+            echo "- Verificar conexion con Supabase"
+          fi
+
+          echo ""
+          echo "Proxima purga: Dia 27 del proximo mes"
+          echo "Proximo entrenamiento GUI: Domingo siguiente"
+          echo "Proximo entrenamiento ML: Dia 1 del proximo mes"
+          echo "=================================================="

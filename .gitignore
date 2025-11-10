@@ -120,3 +120,4 @@ settings_local.*
 scripts/*
 !scripts/*.py
 !scripts/policy_urls.json
+!scripts/gui/
