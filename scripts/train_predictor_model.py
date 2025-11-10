@@ -6,6 +6,7 @@ ENTRENAMIENTO MENSUAL DEL MODELO PREDICTOR
 
 Entrena modelo ML para predecir VPH de videos ANTES de publicarlos
 - Se ejecuta el día 1 de cada mes (GitHub Actions)
+- Usa SOLO TUS VIDEOS (es_tuyo=TRUE) - NO videos de competencia
 - Usa SOLO últimos 6 meses de data (evitar drift algorítmico)
 - Ensemble de 3 modelos (RandomForest, GradientBoosting, Ridge)
 - Validación estricta: TimeSeriesSplit + Hold-out test
@@ -66,6 +67,7 @@ def load_training_data(sb: Client):
 
     result_recientes = sb.table("ml_training_data")\
         .select("*", count="exact")\
+        .eq("es_tuyo", True)\
         .gte("published_at", fecha_limite_6m)\
         .limit(0)\
         .execute()
@@ -84,23 +86,20 @@ def load_training_data(sb: Client):
         if fecha_limite:
             result = sb.table("ml_training_data")\
                 .select("*")\
+                .eq("es_tuyo", True)\
                 .gte("published_at", fecha_limite)\
                 .execute()
         else:
-            # Usar TODOS los videos
+            # Usar TODOS TUS videos (sin competencia)
             result = sb.table("ml_training_data")\
                 .select("*")\
+                .eq("es_tuyo", True)\
                 .execute()
 
         data = result.data if result.data else []
 
-        print(f"  Videos cargados: {len(data)}")
-
-        if data:
-            propios = sum(1 for v in data if v.get('es_tuyo'))
-            competencia = len(data) - propios
-            print(f"  Tuyos: {propios}")
-            print(f"  Competencia: {competencia}")
+        print(f"  Videos TUYOS cargados: {len(data)}")
+        print(f"  Videos de COMPETENCIA: 0 (excluidos intencionalmente)")
 
         return data
 
@@ -586,9 +585,9 @@ def main():
     # Preparar dataset
     X, y = prepare_dataset(videos)
 
-    if len(X) < 50:
+    if len(X) < 30:
         print(f"\n[ERROR] Dataset muy pequeño ({len(X)} samples)")
-        print("[ERROR] Se recomienda >= 100 samples")
+        print("[ERROR] Se recomienda >= 30 samples mínimo")
         print("[ERROR] Esperar a próximo mes para más datos")
         sys.exit(1)
 

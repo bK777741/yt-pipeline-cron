@@ -144,11 +144,11 @@ def predict_vph(ensemble, features):
 def clasificar_vph(vph):
     """Clasifica VPH en categorías"""
     if vph >= 120:
-        return 'EXITOSO', '🚀'
+        return 'EXITOSO', '[EXITO]'
     elif vph >= 60:
-        return 'PROMEDIO', '🟡'
+        return 'PROMEDIO', '[OK]'
     else:
-        return 'FRACASO', '❌'
+        return 'FRACASO', '[BAJO]'
 
 
 def generar_recomendaciones(features, titulo, duracion, dia, hora):
@@ -157,34 +157,34 @@ def generar_recomendaciones(features, titulo, duracion, dia, hora):
 
     # Título
     if not features['tiene_gancho']:
-        recomendaciones.append("⚠️ Agregar palabra gancho (SECRETO, TRUCO, OCULTO, etc.)")
+        recomendaciones.append("[!] Agregar palabra gancho (SECRETO, TRUCO, OCULTO, etc.)")
 
     if not features['tiene_ano']:
-        recomendaciones.append("⚠️ Incluir año actual (2025) en título")
+        recomendaciones.append("[!] Incluir año actual (2025) en título")
 
     if features['titulo_len_cat'] == 0:
-        recomendaciones.append("⚠️ Título muy corto. Usar 80-100 caracteres")
+        recomendaciones.append("[!] Título muy corto. Usar 80-100 caracteres")
 
     # Timing
     if features['dia_tipo'] == 0:
-        recomendaciones.append("⚠️ Mejor día: Viernes o fin de semana")
+        recomendaciones.append("[!] Mejor día: Viernes o fin de semana")
 
     if features['hora_tipo'] == 0:
-        recomendaciones.append("⚠️ Mejor hora: 5PM-9PM (prime time)")
+        recomendaciones.append("[!] Mejor hora: 5PM-9PM (prime time)")
 
     # Duración
     if not features['duracion_optima']:
         if duracion < 90:
-            recomendaciones.append("⚠️ Short óptimo: 20-60 segundos")
+            recomendaciones.append("[!] Short óptimo: 20-60 segundos")
         else:
-            recomendaciones.append("⚠️ Long óptimo: 3-10 minutos")
+            recomendaciones.append("[!] Long óptimo: 3-10 minutos")
 
     # Nicho
     if not features['es_nicho_core']:
-        recomendaciones.append("⚠️ Video fuera del nicho principal (score < 60)")
+        recomendaciones.append("[!] Video fuera del nicho principal (score < 60)")
 
     if not recomendaciones:
-        recomendaciones.append("✅ Video cumple con todas las mejores prácticas")
+        recomendaciones.append("[OK] Video cumple con todas las mejores prácticas")
 
     return recomendaciones
 
@@ -271,13 +271,13 @@ def main():
     print()
 
     if clasificacion == 'EXITOSO':
-        print("🎉 ¡Excelente! Este video tiene alto potencial")
+        print("[EXITO] ¡Excelente! Este video tiene alto potencial")
         print("   Recomendado PUBLICAR")
     elif clasificacion == 'PROMEDIO':
-        print("🟡 Video aceptable, pero puede mejorar")
+        print("[OK] Video aceptable, pero puede mejorar")
         print("   Considera optimizar según recomendaciones")
     else:
-        print("⚠️ ADVERTENCIA: Alto riesgo de fracaso")
+        print("[!] ADVERTENCIA: Alto riesgo de fracaso")
         print("   Recomendado RE-PLANIFICAR antes de publicar")
 
     print()
