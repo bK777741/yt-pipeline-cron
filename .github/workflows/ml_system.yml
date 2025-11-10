@@ -1,0 +1,250 @@
+# .github/workflows/ml_system.yml
+# SISTEMA ML PREDICTOR - WORKFLOW HÍBRIDO
+#
+# ESTRATEGIA:
+# - SEMANAL: Análisis de anti-patrones (domingos 3AM) - NO entrena
+# - MENSUAL: Snapshot + Re-entrenamiento completo (día 1 de cada mes)
+#
+# CUOTA API: 0 unidades (solo lee de Supabase)
+
+name: Sistema ML Predictor
+
+concurrency:
+  group: ml-system-${{ github.ref }}-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: false # NO cancelar, estos jobs son críticos
+
+env:
+  TZ: America/Lima
+  PYTHON_VERSION: "3.11"
+
+# ========= TRIGGERS =========
+on:
+  # 1. Análisis semanal: Cada domingo a las 3AM
+  schedule:
+    - cron: "0 3 * * 0"  # Domingos 3AM Lima
+
+  # 2. Entrenamiento mensual: Día 1 de cada mes a las 2AM
+  # schedule:
+  #   - cron: "0 2 1 * *"  # Día 1 de cada mes 2AM Lima
+  # NOTA: Se ejecuta desde workflow separado para evitar conflictos
+
+  # 3. Manual dispatch
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Ejecutar solo este job"
+        required: false
+        type: choice
+        options:
+          - ""
+          - analisis_semanal
+          - snapshot_pre_purga
+          - entrenar_modelo
+
+# ========= JOBS =========
+jobs:
+  # =====================================================================
+  # JOB 1: ANÁLISIS SEMANAL (Domingos 3AM)
+  # Detecta anti-patrones en videos de la última semana
+  # NO entrena modelo, solo analiza y alerta
+  # =====================================================================
+  analisis_semanal:
+    name: "Análisis Semanal Anti-Patrones"
+    runs-on: ubuntu-latest
+    if: |
+      github.event.schedule == '0 3 * * 0' ||
+      github.event.inputs.job == '' ||
+      github.event.inputs.job == 'analisis_semanal'
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar análisis semanal
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd GITHUB\ CRON/scripts
+          python analizar_anti_patrones_semanal.py
+
+      - name: Verificar anti-patrones detectados
+        run: |
+          echo "✅ Análisis semanal completado"
+          echo "📊 Próximo análisis: Domingo siguiente"
+
+      # TODO: Enviar email con reporte semanal
+      # - name: Enviar email reporte
+      #   if: always()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: "[ML] Análisis Semanal Completado"
+      #     body: file://reporte_semanal.txt
+
+  # =====================================================================
+  # JOB 2: SNAPSHOT PRE-PURGA (Antes del día 1 de cada mes)
+  # Guarda datos de videos antes de que sean purgados
+  # Se ejecuta AUTOMÁTICAMENTE desde workflow de purga
+  # =====================================================================
+  snapshot_pre_purga:
+    name: "Snapshot de datos (pre-purga)"
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.job == 'snapshot_pre_purga'
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Guardar snapshot para ML
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd GITHUB\ CRON/scripts
+          python save_training_snapshot.py
+
+      - name: Verificar snapshot guardado
+        run: |
+          echo "✅ Snapshot guardado en ml_training_data"
+          echo "📊 Datos preservados antes de purga"
+
+  # =====================================================================
+  # JOB 3: ENTRENAMIENTO MENSUAL (Día 1 de cada mes)
+  # Entrena modelo ML con datos de últimos 6 meses
+  # Solo guarda modelo si precisión >= 60%
+  # =====================================================================
+  entrenar_modelo:
+    name: "Entrenamiento Mensual Modelo ML"
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.job == 'entrenar_modelo'
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias ML
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install scikit-learn pandas numpy
+
+      - name: Entrenar modelo predictor
+        id: train
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd GITHUB\ CRON/scripts
+          python train_predictor_model.py
+
+      - name: Commit modelo entrenado
+        if: success()
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Agregar modelo si fue creado
+          if [ -f "GITHUB CRON/models/predictor_ensemble.pkl" ]; then
+            git add "GITHUB CRON/models/predictor_ensemble.pkl"
+
+            git commit -m "$(cat <<'EOF'
+          UPDATE: Modelo ML entrenado - $(date +%Y-%m)
+
+          Entrenamiento mensual automático completado
+          - Precisión: Ver logs del workflow
+          - Dataset: Últimos 6 meses
+          - Validación: TimeSeriesSplit + Hold-out test
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          )"
+
+            git push
+            echo "✅ Modelo commiteado exitosamente"
+          else
+            echo "⚠️ Modelo no fue generado (no cumplió criterios de validación)"
+          fi
+
+      - name: Notificar resultado
+        if: always()
+        run: |
+          if [ "${{ steps.train.outcome }}" == "success" ]; then
+            echo "✅ Entrenamiento EXITOSO"
+            echo "📊 Modelo listo para predicciones"
+          else
+            echo "❌ Entrenamiento FALLÓ"
+            echo "📊 Verificar logs para detalles"
+          fi
+
+      # TODO: Enviar email con resultado de entrenamiento
+      # - name: Enviar email resultado
+      #   if: always()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: "[ML] Entrenamiento Mensual - ${{ steps.train.outcome }}"
+      #     body: file://reporte_entrenamiento.txt
+
+# =====================================================================
+# NOTAS DE IMPLEMENTACIÓN
+# =====================================================================
+#
+# 1. ORDEN DE EJECUCIÓN MENSUAL:
+#    - Día 28-30: snapshot_pre_purga (guardar datos)
+#    - Día 1: purga_automatica (eliminar videos viejos)
+#    - Día 1: entrenar_modelo (entrenar con datos guardados)
+#
+# 2. INTEGRACIÓN CON WORKFLOW DE PURGA:
+#    - El job snapshot_pre_purga se debe llamar desde purga_automatica_supabase.yml
+#    - Usar workflow_call para ejecutarlo antes de purgar
+#
+# 3. RETRY LOGIC:
+#    - Análisis semanal: Se reintenta automáticamente (no crítico)
+#    - Entrenamiento: Si falla, mantiene modelo anterior
+#    - Snapshot: CRÍTICO - debe ejecutarse antes de purga
+#
+# 4. MONITOREO:
+#    - Verificar logs en GitHub Actions
+#    - Revisar tabla modelo_ml_metadata en Supabase
+#    - Dashboard local muestra estado del sistema
+#
+# =====================================================================

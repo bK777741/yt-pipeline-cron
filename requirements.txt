@@ -8,6 +8,7 @@ pytz
 requests
 beautifulsoup4
 numpy
+pandas
 scipy
 nltk==3.8.1
 opencv-python-headless==4.10.0.84

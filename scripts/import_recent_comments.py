@@ -146,13 +146,18 @@ def fetch_comments_for_video(yt, video_id, max_results):
 
 def process_comment(snippet, comment_id, video_id, parent_id=None):
     published_at = snippet["publishedAt"]
+    # FIX 2025-11-09: Usar nombres de columnas que coinciden con SQLite local
+    # (text, author, author_channel_id en vez de text_original, author_display_name, author_channel_url)
+    author_channel_data = snippet.get("authorChannelId", {})
+    author_channel_id = author_channel_data.get("value") if isinstance(author_channel_data, dict) else author_channel_data
+
     return {
         "video_id": video_id,
         "comment_id": comment_id,
         "parent_id": parent_id,
-        "author_display_name": snippet.get("authorDisplayName"),
-        "author_channel_url": snippet.get("authorChannelUrl"),
-        "text_original": snippet.get("textOriginal") or snippet.get("textDisplay", ""),
+        "author": snippet.get("authorDisplayName"),  # SQLite espera "author"
+        "author_channel_id": author_channel_id,      # SQLite espera "author_channel_id"
+        "text": snippet.get("textOriginal") or snippet.get("textDisplay", ""),  # SQLite espera "text"
         "like_count": snippet.get("likeCount", 0),
         "published_at": published_at,
         "updated_at": snippet.get("updatedAt", published_at),

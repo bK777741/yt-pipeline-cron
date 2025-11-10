@@ -34,6 +34,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # ====================================================================
+      # PASO CRÍTICO: Guardar snapshot ANTES de purgar
+      # Preserva datos para entrenamiento ML
+      # ====================================================================
+      - name: Guardar snapshot para ML (pre-purga)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "📸 Guardando snapshot de datos antes de purgar..."
+          cd scripts
+          python save_training_snapshot.py
+          echo "✅ Snapshot guardado en ml_training_data"
+
       - name: Verificar y purgar storage
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

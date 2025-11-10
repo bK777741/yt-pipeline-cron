@@ -105,6 +105,17 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      # ====================================================================
+      # PASO CRÍTICO: Guardar snapshot ANTES de purgar (competencia)
+      # Preserva datos de videos trending para ML
+      # ====================================================================
+      - name: Guardar snapshot para ML (pre-purga competencia)
+        run: |
+          echo "📸 Guardando snapshot de competencia antes de purgar..."
+          cd scripts
+          python save_training_snapshot.py
+          echo "✅ Snapshot guardado en ml_training_data"
+
       - name: Ejecutar purga_trending_30dias.py
         run: |
           cd scripts
