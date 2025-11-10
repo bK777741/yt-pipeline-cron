@@ -35,8 +35,34 @@ except ImportError:
     print("[WARNING] nicho_utils.py no encontrado - Control de cuota deshabilitado")
     QUOTA_TRACKING_ENABLED = False
 
-# LÍMITE DIARIO: 30 videos (vs 2 del script viejo)
-LIMIT_DIARIO = 30
+# LÍMITE DIARIO: 20 videos (optimizado para cuota API)
+# FIX 2025-11-10: Reducido de 30 a 20 para evitar exceder cuota
+#
+# CÁLCULO DE CUOTA:
+# - Transcripciones: 20 × 250 unidades = 5,000 unidades
+# - Maint metrics: 50 unidades
+# - Otros jobs: 500 unidades
+# - DÍAS NORMALES: 5,550 unidades (margen: 4,450)
+# - DÍAS CON TRENDING: 5,550 + 2,500 = 8,050 unidades (margen: 1,950) ✓
+#
+# ALTERNATIVA OPTIMIZADA (requiere detección de trending):
+# - Días SIN trending: 30 videos (8,050 unidades, margen 1,950)
+# - Días CON trending: 15 videos (6,250 unidades, margen 3,750)
+#
+# Para habilitar límite dinámico:
+# 1. Uncomment la función get_daily_limit() abajo
+# 2. Cambiar LIMIT_DIARIO = 20 por LIMIT_DIARIO = get_daily_limit()
+LIMIT_DIARIO = 20
+
+# def get_daily_limit():
+#     """
+#     Calcula límite dinámico basado en si hoy hay trending
+#     NOTA: Requiere verificación robusta del día de trending
+#     """
+#     import datetime
+#     today = datetime.datetime.now(datetime.timezone.utc)
+#     # Implementar lógica de detección aquí
+#     return 20  # Por ahora, retornar valor conservador
 
 
 def load_env():
