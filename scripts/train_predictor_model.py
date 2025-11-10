@@ -52,19 +52,45 @@ def load_env():
 
 def load_training_data(sb: Client):
     """
-    Carga datos de entrenamiento de últimos 6 meses
+    Carga datos de entrenamiento
     Combina tus videos + competencia
+
+    VENTANA TEMPORAL:
+    - Si hay >= 200 videos recientes (6 meses): Usar solo esos
+    - Si hay < 200 videos recientes: Usar TODOS los videos disponibles
     """
     print("\n[1/8] Cargando datos de entrenamiento...")
 
-    # Solo últimos 6 meses (evitar drift algorítmico)
-    fecha_limite = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+    # Verificar cuántos videos recientes hay (6 meses)
+    fecha_limite_6m = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+
+    result_recientes = sb.table("ml_training_data")\
+        .select("*", count="exact")\
+        .gte("published_at", fecha_limite_6m)\
+        .limit(0)\
+        .execute()
+
+    videos_recientes = result_recientes.count if hasattr(result_recientes, 'count') else 0
+
+    # Decisión: Usar ventana adaptativa
+    if videos_recientes >= 200:
+        print(f"  [INFO] Usando solo ultimos 6 meses ({videos_recientes} videos)")
+        fecha_limite = fecha_limite_6m
+    else:
+        print(f"  [INFO] Pocos videos recientes ({videos_recientes}), usando TODOS los videos")
+        fecha_limite = None
 
     try:
-        result = sb.table("ml_training_data")\
-            .select("*")\
-            .gte("published_at", fecha_limite)\
-            .execute()
+        if fecha_limite:
+            result = sb.table("ml_training_data")\
+                .select("*")\
+                .gte("published_at", fecha_limite)\
+                .execute()
+        else:
+            # Usar TODOS los videos
+            result = sb.table("ml_training_data")\
+                .select("*")\
+                .execute()
 
         data = result.data if result.data else []
 
@@ -137,7 +163,7 @@ def extract_features(video):
         features['hora_tipo'] = 0
 
     # Feature 5-6: Duración
-    duration = video.get('duration', 0)
+    duration = video.get('duration', 0) or 0  # Manejar None
     features['es_short'] = 1 if duration < 90 else 0
 
     if duration < 90:  # Short
@@ -351,17 +377,17 @@ def validate_model(ensemble, X, y):
     criterios_cumplidos = []
 
     if precision >= 60:
-        print(f"\n  ✅ CRITERIO 1: Precision >= 60% ({precision:.1f}%)")
+        print(f"\n  [OK] CRITERIO 1: Precision >= 60% ({precision:.1f}%)")
         criterios_cumplidos.append(True)
     else:
-        print(f"\n  ❌ CRITERIO 1: Precision < 60% ({precision:.1f}%)")
+        print(f"\n  [NO] CRITERIO 1: Precision < 60% ({precision:.1f}%)")
         criterios_cumplidos.append(False)
 
     if r2 >= 0.20:
-        print(f"  ✅ CRITERIO 2: R² >= 0.20 ({r2:.4f})")
+        print(f"  [OK] CRITERIO 2: R2 >= 0.20 ({r2:.4f})")
         criterios_cumplidos.append(True)
     else:
-        print(f"  ❌ CRITERIO 2: R² < 0.20 ({r2:.4f})")
+        print(f"  [NO] CRITERIO 2: R2 < 0.20 ({r2:.4f})")
         criterios_cumplidos.append(False)
 
     aprobado = all(criterios_cumplidos)
