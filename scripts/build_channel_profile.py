@@ -43,13 +43,13 @@ def fetch_channel_content():
 
     logging.info(f"Obteniendo guiones para {len(video_ids)} videos...")
     scripts_response = supabase.table('video_scripts') \
-        .select('video_id, script_structured, transcript_clean') \
+        .select('video_id, script_text') \
         .in_('video_id', video_ids) \
         .execute()
 
     scripts = scripts_response.data or []
     by_id = {
-        s['video_id']: (s.get('script_structured') or s.get('transcript_clean') or '')
+        s['video_id']: s.get('script_text', '')
         for s in scripts
     }
 
