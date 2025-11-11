@@ -4,33 +4,27 @@
 CAPTURA DE SUBTITULOS PARA GITHUB ACTIONS
 ==========================================
 
-Versión optimizada usando youtube-transcript-api (NO oficial)
+Versión optimizada de captura_subtitulos_api_oficial.py para GitHub Actions
 - Guarda en Supabase (no SQLite local)
-- NO requiere OAuth (sin errores 403)
-- NO consume cuota API (GRATIS)
-- Límite: 20 videos/día
+- Usa credenciales de GitHub Secrets
+- Límite: 30 videos/día (vs 2 del script viejo)
 - Dos fases: Completar histórico → Mantenimiento
 
-CAMBIO v4.2.2 (2025-11-11):
-- Reemplazado YouTube Captions API por youtube-transcript-api
-- Razón: Error 403 por falta de permisos OAuth
-- Ventaja: Sin cuota API, más confiable
+REEMPLAZA A: import_captions.py (que no trajo subtítulos)
 
 CUOTA API:
-- youtube-transcript-api: 0 unidades (NO usa API oficial)
-- Solo requiere que el video sea público
+- captions.list(): 50 unidades
+- captions.download(): 200 unidades
+- Total: 250 unidades por video
+- 30 videos/día = 7,500 unidades
 """
 
 import os
 import sys
 import time
 from datetime import datetime, timezone
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import (
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    VideoUnavailable
-)
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from supabase import create_client, Client
 
 # Importar funciones de control de cuota
@@ -41,19 +35,24 @@ except ImportError:
     print("[WARNING] nicho_utils.py no encontrado - Control de cuota deshabilitado")
     QUOTA_TRACKING_ENABLED = False
 
-# LÍMITE DIARIO: 500 videos (ILIMITADO con youtube-transcript-api)
-# FIX 2025-11-11: Aumentado de 20 a 500 porque youtube-transcript-api NO consume cuota API
+# LÍMITE DIARIO: 20 videos (optimizado para cuota API)
+# FIX 2025-11-10: Reducido de 30 a 20 para evitar exceder cuota
 #
 # CÁLCULO DE CUOTA:
-# - youtube-transcript-api: 0 unidades (NO usa API oficial de YouTube)
-# - Solo hace scraping de transcripciones públicas
-# - Límite: Solo depende del tiempo de ejecución de GitHub Actions
+# - Transcripciones: 20 × 250 unidades = 5,000 unidades
+# - Maint metrics: 50 unidades
+# - Otros jobs: 500 unidades
+# - DÍAS NORMALES: 5,550 unidades (margen: 4,450)
+# - DÍAS CON TRENDING: 5,550 + 2,500 = 8,050 unidades (margen: 1,950) ✓
 #
-# ESTRATEGIA:
-# - 500 videos/día = Completar histórico en 1 día
-# - Si hay problemas de timeout, reducir a 200-300
-# - Después del histórico, volver a 20-30 para mantenimiento
-LIMIT_DIARIO = 500
+# ALTERNATIVA OPTIMIZADA (requiere detección de trending):
+# - Días SIN trending: 30 videos (8,050 unidades, margen 1,950)
+# - Días CON trending: 15 videos (6,250 unidades, margen 3,750)
+#
+# Para habilitar límite dinámico:
+# 1. Uncomment la función get_daily_limit() abajo
+# 2. Cambiar LIMIT_DIARIO = 20 por LIMIT_DIARIO = get_daily_limit()
+LIMIT_DIARIO = 20
 
 # def get_daily_limit():
 #     """
@@ -68,15 +67,23 @@ LIMIT_DIARIO = 500
 
 def load_env():
     """Cargar credenciales desde variables de entorno"""
+    creds = Credentials(
+        token=None,
+        refresh_token=os.environ["YT_REFRESH_TOKEN"].strip(),
+        client_id=os.environ["YT_CLIENT_ID"].strip(),
+        client_secret=os.environ["YT_CLIENT_SECRET"].strip(),
+        token_uri="https://oauth2.googleapis.com/token",
+    )
     supabase_url = os.environ["SUPABASE_URL"].strip()
     supabase_key = os.environ["SUPABASE_SERVICE_KEY"].strip()
-    return supabase_url, supabase_key
+    return creds, supabase_url, supabase_key
 
 
-def init_clients(supabase_url, supabase_key):
-    """Inicializar cliente de Supabase"""
+def init_clients(creds, supabase_url, supabase_key):
+    """Inicializar clientes de YouTube y Supabase"""
+    yt = build("youtube", "v3", credentials=creds)
     sb: Client = create_client(supabase_url, supabase_key)
-    return sb
+    return yt, sb
 
 
 def get_videos_without_captions(sb: Client, limit=30):
@@ -125,83 +132,54 @@ def get_videos_without_captions(sb: Client, limit=30):
     return videos_sin_captions
 
 
-def get_transcript_for_video(video_id):
+def list_captions_for_video(youtube, video_id):
     """
-    Obtiene el transcript de un video usando youtube-transcript-api
+    Lista los captions disponibles para un video
 
     Args:
+        youtube: Objeto de servicio de YouTube API
         video_id (str): ID del video
 
     Returns:
-        tuple: (transcript_text, language) o (None, None) si falla
+        list: Lista de captions disponibles
     """
     try:
-        # Método correcto: crear instancia y usar list()
-        api = YouTubeTranscriptApi()
-        transcript_list = api.list(video_id)
-
-        # Intentar obtener transcript en español primero
-        try:
-            transcript = transcript_list.find_transcript(['es', 'es-ES', 'es-MX'])
-            language = 'es'
-        except:
-            try:
-                # Si no hay español, intentar inglés
-                transcript = transcript_list.find_transcript(['en', 'en-US', 'en-GB'])
-                language = 'en'
-            except:
-                # Si no, tomar el primero generado automáticamente
-                transcript = transcript_list.find_generated_transcript(['es', 'en'])
-                language = transcript.language_code if hasattr(transcript, 'language_code') else 'auto'
-
-        # Obtener los datos del transcript
-        transcript_data = transcript.fetch()
-
-        # Convertir a formato SRT simplificado
-        srt_lines = []
-        for i, entry in enumerate(transcript_data, 1):
-            start = entry.start
-            duration = entry.duration
-            text = entry.text
-
-            # Formato: timestamp + texto
-            srt_lines.append(f"{i}")
-            srt_lines.append(f"{format_timestamp(start)} --> {format_timestamp(start + duration)}")
-            srt_lines.append(text)
-            srt_lines.append("")
-
-        transcript_text = '\n'.join(srt_lines)
-        return transcript_text, language
-
-    except TranscriptsDisabled:
-        print(f"  [AVISO] Transcripciones deshabilitadas para este video")
-        return None, None
-    except NoTranscriptFound:
-        print(f"  [AVISO] No se encontró transcript para este video")
-        return None, None
-    except VideoUnavailable:
-        print(f"  [AVISO] Video no disponible")
-        return None, None
+        request = youtube.captions().list(
+            part="snippet",
+            videoId=video_id
+        )
+        response = request.execute()
+        return response.get('items', [])
     except Exception as e:
-        print(f"  [ERROR] Error al obtener transcript: {str(e)[:150]}")
-        return None, None
+        print(f"  [ERROR] No se pudo listar captions: {str(e)[:150]}")
+        return []
 
 
-def format_timestamp(seconds):
+def download_caption(youtube, caption_id, tfmt='srt'):
     """
-    Convierte segundos a formato SRT timestamp (HH:MM:SS,mmm)
+    Descarga un caption específico
 
     Args:
-        seconds (float): Segundos
+        youtube: Objeto de servicio de YouTube API
+        caption_id (str): ID del caption
+        tfmt (str): Formato (srt, vtt, sbv, ttml)
 
     Returns:
-        str: Timestamp en formato SRT
+        str: Texto del caption o None
     """
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+    try:
+        request = youtube.captions().download(
+            id=caption_id,
+            tfmt=tfmt
+        )
+        caption_text = request.execute()
+        # Decodificar bytes a string
+        if isinstance(caption_text, bytes):
+            return caption_text.decode('utf-8')
+        return caption_text
+    except Exception as e:
+        print(f"  [ERROR] No se pudo descargar caption: {str(e)[:150]}")
+        return None
 
 
 def save_caption_to_supabase(sb: Client, video_id, language, caption_text):
@@ -235,8 +213,8 @@ def main():
     # Cargar credenciales
     print("[INFO] Cargando credenciales...")
     try:
-        supabase_url, supabase_key = load_env()
-        sb = init_clients(supabase_url, supabase_key)
+        creds, supabase_url, supabase_key = load_env()
+        yt, sb = init_clients(creds, supabase_url, supabase_key)
         print("[OK] Credenciales cargadas")
     except Exception as e:
         print(f"[ERROR] No se pudo cargar credenciales: {e}")
@@ -326,19 +304,54 @@ def main():
         print(f"\n[{idx}/{len(videos)}] {safe_title[:60]}...")
         print(f"  Video ID: {video_id}")
 
-        # Obtener transcript usando youtube-transcript-api
-        transcript_text, language = get_transcript_for_video(video_id)
+        # Listar captions disponibles
+        captions_list = list_captions_for_video(yt, video_id)
 
-        if transcript_text:
-            # Guardar en Supabase
-            save_caption_to_supabase(sb, video_id, language, transcript_text)
-            print(f"  [OK] Transcript guardado en '{language}' ({len(transcript_text)} caracteres)")
-            success_count += 1
-        else:
+        if not captions_list:
+            print(f"  [AVISO] No hay captions disponibles para este video")
             error_count += 1
+            continue
 
-        # Pausa mínima (youtube-transcript-api no tiene rate limit estricto)
-        time.sleep(0.2)
+        print(f"  [OK] {len(captions_list)} caption(s) disponibles")
+
+        # Intentar descargar caption en español primero
+        spanish_langs = ['es', 'es-419', 'es-ES', 'es-MX', 'es-AR', 'es-CO']
+        caption_downloaded = False
+
+        for cap in captions_list:
+            lang = cap['snippet']['language']
+            if lang in spanish_langs:
+                caption_id = cap['id']
+                print(f"  [DESCARGANDO] Caption en español ({lang})...")
+
+                caption_text = download_caption(yt, caption_id, tfmt='srt')
+
+                if caption_text:
+                    # Guardar en Supabase
+                    save_caption_to_supabase(sb, video_id, lang, caption_text)
+                    print(f"  [OK] Caption guardado ({len(caption_text)} caracteres)")
+                    success_count += 1
+                    caption_downloaded = True
+                    break
+
+        if not caption_downloaded:
+            # Si no hay en español, intentar con el primero disponible
+            first_cap = captions_list[0]
+            lang = first_cap['snippet']['language']
+            caption_id = first_cap['id']
+            print(f"  [DESCARGANDO] Caption en {lang} (no hay español)...")
+
+            caption_text = download_caption(yt, caption_id, tfmt='srt')
+
+            if caption_text:
+                save_caption_to_supabase(sb, video_id, lang, caption_text)
+                print(f"  [OK] Caption guardado ({len(caption_text)} caracteres)")
+                success_count += 1
+            else:
+                error_count += 1
+
+        # Evitar rate limits
+        time.sleep(1)
 
     # Resumen final
     print("\n" + "=" * 80)
@@ -349,15 +362,15 @@ def main():
     print(f"[STATS] Tasa de exito: {success_count / len(videos) * 100:.1f}%")
     print()
 
-    # Calcular cuota API usada (0 con youtube-transcript-api)
-    quota_used = 0  # youtube-transcript-api NO usa cuota API
-    print(f"[API] Cuota usada: {quota_used} unidades (youtube-transcript-api NO consume cuota)")
+    # Calcular cuota API usada
+    quota_used = success_count * 250  # 50 (list) + 200 (download)
+    print(f"[API] Cuota estimada usada: {quota_used:,} unidades")
     print(f"[API] Cuota diaria limite: 10,000 unidades")
-    print(f"[API] Cuota disponible: 10,000 unidades")
+    print(f"[API] Cuota disponible: {10000 - quota_used:,} unidades")
     print()
 
-    # Registrar cuota usada (aunque sea 0)
-    if QUOTA_TRACKING_ENABLED:
+    # Registrar cuota usada
+    if QUOTA_TRACKING_ENABLED and quota_used > 0:
         try:
             registrar_uso_cuota("captions", quota_used, sb)
             print(f"[OK] Cuota registrada en sistema de tracking")
