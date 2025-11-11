@@ -41,24 +41,19 @@ except ImportError:
     print("[WARNING] nicho_utils.py no encontrado - Control de cuota deshabilitado")
     QUOTA_TRACKING_ENABLED = False
 
-# LÍMITE DIARIO: 20 videos (optimizado para cuota API)
-# FIX 2025-11-10: Reducido de 30 a 20 para evitar exceder cuota
+# LÍMITE DIARIO: 500 videos (ILIMITADO con youtube-transcript-api)
+# FIX 2025-11-11: Aumentado de 20 a 500 porque youtube-transcript-api NO consume cuota API
 #
 # CÁLCULO DE CUOTA:
-# - Transcripciones: 20 × 250 unidades = 5,000 unidades
-# - Maint metrics: 50 unidades
-# - Otros jobs: 500 unidades
-# - DÍAS NORMALES: 5,550 unidades (margen: 4,450)
-# - DÍAS CON TRENDING: 5,550 + 2,500 = 8,050 unidades (margen: 1,950) ✓
+# - youtube-transcript-api: 0 unidades (NO usa API oficial de YouTube)
+# - Solo hace scraping de transcripciones públicas
+# - Límite: Solo depende del tiempo de ejecución de GitHub Actions
 #
-# ALTERNATIVA OPTIMIZADA (requiere detección de trending):
-# - Días SIN trending: 30 videos (8,050 unidades, margen 1,950)
-# - Días CON trending: 15 videos (6,250 unidades, margen 3,750)
-#
-# Para habilitar límite dinámico:
-# 1. Uncomment la función get_daily_limit() abajo
-# 2. Cambiar LIMIT_DIARIO = 20 por LIMIT_DIARIO = get_daily_limit()
-LIMIT_DIARIO = 20
+# ESTRATEGIA:
+# - 500 videos/día = Completar histórico en 1 día
+# - Si hay problemas de timeout, reducir a 200-300
+# - Después del histórico, volver a 20-30 para mantenimiento
+LIMIT_DIARIO = 500
 
 # def get_daily_limit():
 #     """
@@ -340,8 +335,8 @@ def main():
         else:
             error_count += 1
 
-        # Pausa mínima para no saturar
-        time.sleep(0.5)
+        # Pausa mínima (youtube-transcript-api no tiene rate limit estricto)
+        time.sleep(0.2)
 
     # Resumen final
     print("\n" + "=" * 80)
