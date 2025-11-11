@@ -136,24 +136,20 @@ def get_transcript_for_video(video_id):
         tuple: (transcript_text, language) o (None, None) si falla
     """
     try:
+        # Método correcto: get_transcript (no list_transcripts)
         # Intentar obtener transcript en español primero
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-
-        # Prioridad: español > inglés > cualquier otro
         try:
-            transcript = transcript_list.find_transcript(['es', 'es-ES', 'es-MX'])
+            transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['es', 'es-ES', 'es-MX'])
             language = 'es'
         except:
             try:
-                transcript = transcript_list.find_transcript(['en', 'en-US', 'en-GB'])
+                # Si no hay español, intentar inglés
+                transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
                 language = 'en'
             except:
-                # Tomar el primero disponible
-                transcript = transcript_list.find_generated_transcript(['es', 'en'])
-                language = transcript.language_code
-
-        # Obtener el texto
-        transcript_data = transcript.fetch()
+                # Si no, intentar auto-generated en cualquier idioma
+                transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+                language = 'auto'
 
         # Convertir a formato SRT simplificado
         srt_lines = []
