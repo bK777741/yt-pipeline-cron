@@ -7,6 +7,7 @@ postgrest>=0.14.8
 pytz
 requests
 beautifulsoup4
+youtube-transcript-api>=0.6.0
 numpy
 pandas
 scipy
