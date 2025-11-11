@@ -1,0 +1,74 @@
+name: Analisis ML Semanal
+
+on:
+  schedule:
+    # Lunes 6 AM UTC
+    - cron: "0 6 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'Modo de analisis (completo, ligero, recomendaciones)'
+        required: false
+        type: choice
+        options:
+          - completo
+          - ligero
+          - recomendaciones
+        default: 'completo'
+
+jobs:
+  analisis_ml:
+    name: "Analisis ML de Viralidad"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Descargar recursos NLTK
+        run: |
+          python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)"
+          python -m textblob.download_corpora
+
+      - name: Ejecutar orquestador ML
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          cd scripts
+          modo="${{ inputs.modo || 'completo' }}"
+          python orquestador_ml_viralidad.py "$modo"
+
+      - name: Guardar reporte (si existe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-ml-${{ github.run_number }}
+          path: reportes/reporte_ml_*.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Notificar resultado
+        if: always()
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Analisis ML completado exitosamente"
+          else
+            echo "❌ Analisis ML fallo - revisar logs"
+            exit 1
+          fi

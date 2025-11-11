@@ -516,9 +516,45 @@ def main():
             print(f"  Palabras totales: {div['palabras_totales']:,}")
             print()
 
-            # TODO: Guardar en tabla ml_text_analysis
-            print("[INFO] Analisis completado (no guardado en DB aun)")
-            print()
+            # Guardar en tabla ml_text_analysis
+            try:
+                import json
+
+                sb.table("ml_text_analysis").insert({
+                    'video_id': resultado['video_id'],
+                    'timestamp': resultado['timestamp'],
+                    'longitud_caracteres': resultado['longitud_caracteres'],
+                    'longitud_palabras': resultado['longitud_palabras'],
+                    'tema_principal': tema['tema'],
+                    'tema_confianza': tema['confianza'],
+                    'top_keywords': json.dumps(tema['top_keywords']),
+                    'ritmo_tipo': ritmo['tipo'],
+                    'ritmo_variacion': ritmo['variacion'],
+                    'ritmo_longitud_promedio': ritmo['longitud_promedio'],
+                    'ritmo_num_oraciones': ritmo['num_oraciones'],
+                    'hooks_total': hooks['total'],
+                    'hooks_intensidad': hooks['intensidad'],
+                    'hooks_nivel': hooks['nivel'],
+                    'hooks_por_categoria': json.dumps(hooks['por_categoria']),
+                    'sentimiento_tipo': sent['tipo'],
+                    'sentimiento_polaridad': sent['polaridad'],
+                    'sentimiento_subjetividad': sent['subjetividad'],
+                    'nicho_score_total': kw_nicho['score_total'],
+                    'nicho_densidad': kw_nicho['densidad'],
+                    'nicho_keywords_detectadas': json.dumps(kw_nicho['keywords_detectadas']),
+                    'nicho_num_keywords': kw_nicho['num_keywords'],
+                    'diversidad_tipo': div['tipo'],
+                    'diversidad_valor': div['diversidad'],
+                    'diversidad_palabras_unicas': div['palabras_unicas'],
+                    'diversidad_palabras_totales': div['palabras_totales']
+                }).execute()
+
+                print("✅ Analisis guardado en Supabase (ml_text_analysis)")
+                print()
+            except Exception as e:
+                print(f"⚠️  No se pudo guardar en DB: {str(e)[:100]}")
+                print("   (Analisis completado pero no persistido)")
+                print()
         else:
             print("[ERROR] No se pudo analizar video (sin subtitulos?)")
             print()

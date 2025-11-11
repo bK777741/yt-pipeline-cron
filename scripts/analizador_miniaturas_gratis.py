@@ -573,9 +573,45 @@ def main():
             print(f"  Densidad en tercios: {comp['densidad_tercios']:.3f}")
             print()
 
-            # TODO: Guardar en tabla ml_thumbnail_analysis
-            print("[INFO] Analisis completado (no guardado en DB aun)")
-            print()
+            # Guardar en tabla ml_thumbnail_analysis
+            try:
+                import json
+
+                ocr_data = resultado.get('texto_ocr')
+
+                sb.table("ml_thumbnail_analysis").insert({
+                    'video_id': resultado['video_id'],
+                    'timestamp': resultado['timestamp'],
+                    'thumbnail_url': resultado['thumbnail_url'],
+                    'ancho': dim['ancho'],
+                    'alto': dim['alto'],
+                    'contraste_valor': cont['valor'],
+                    'contraste_nivel': cont['nivel'],
+                    'contraste_calidad': cont['calidad'],
+                    'colores_vibrancia': cols['vibrancia'],
+                    'colores_saturacion_promedio': cols['saturacion_promedio'],
+                    'colores_top': json.dumps(cols['colores']),
+                    'saturacion_valor': sb_data['saturacion']['valor'],
+                    'saturacion_nivel': sb_data['saturacion']['nivel'],
+                    'brillo_valor': sb_data['brillo']['valor'],
+                    'brillo_nivel': sb_data['brillo']['nivel'],
+                    'rostros_detectados': rostros['detectados'],
+                    'rostros_nivel': rostros['nivel'],
+                    'rostros_info': json.dumps(rostros['rostros']),
+                    'ocr_texto': ocr_data.get('texto') if ocr_data else None,
+                    'ocr_num_caracteres': ocr_data.get('num_caracteres') if ocr_data else None,
+                    'ocr_num_palabras': ocr_data.get('num_palabras') if ocr_data else None,
+                    'ocr_nivel': ocr_data.get('nivel') if ocr_data else None,
+                    'composicion_calidad': comp['calidad'],
+                    'composicion_densidad_tercios': comp['densidad_tercios']
+                }).execute()
+
+                print("✅ Analisis guardado en Supabase (ml_thumbnail_analysis)")
+                print()
+            except Exception as e:
+                print(f"⚠️  No se pudo guardar en DB: {str(e)[:100]}")
+                print("   (Analisis completado pero no persistido)")
+                print()
         else:
             print("[ERROR] No se pudo analizar miniatura")
             print()
