@@ -136,27 +136,33 @@ def get_transcript_for_video(video_id):
         tuple: (transcript_text, language) o (None, None) si falla
     """
     try:
-        # Método correcto: get_transcript (no list_transcripts)
+        # Método correcto: crear instancia y usar list()
+        api = YouTubeTranscriptApi()
+        transcript_list = api.list(video_id)
+
         # Intentar obtener transcript en español primero
         try:
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['es', 'es-ES', 'es-MX'])
+            transcript = transcript_list.find_transcript(['es', 'es-ES', 'es-MX'])
             language = 'es'
         except:
             try:
                 # Si no hay español, intentar inglés
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
+                transcript = transcript_list.find_transcript(['en', 'en-US', 'en-GB'])
                 language = 'en'
             except:
-                # Si no, intentar auto-generated en cualquier idioma
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-                language = 'auto'
+                # Si no, tomar el primero generado automáticamente
+                transcript = transcript_list.find_generated_transcript(['es', 'en'])
+                language = transcript.language_code if hasattr(transcript, 'language_code') else 'auto'
+
+        # Obtener los datos del transcript
+        transcript_data = transcript.fetch()
 
         # Convertir a formato SRT simplificado
         srt_lines = []
         for i, entry in enumerate(transcript_data, 1):
-            start = entry['start']
-            duration = entry['duration']
-            text = entry['text']
+            start = entry.start
+            duration = entry.duration
+            text = entry.text
 
             # Formato: timestamp + texto
             srt_lines.append(f"{i}")
