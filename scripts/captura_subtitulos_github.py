@@ -17,6 +17,23 @@ CUOTA API:
 - captions.download(): 200 unidades
 - Total: 250 unidades por video
 - 30 videos/día = 7,500 unidades
+
+⚠️ POLÍTICA DE SEGURIDAD:
+==========================================
+OPERACIONES PERMITIDAS (SOLO LECTURA):
+✅ youtube.captions().list()     - Listar captions disponibles
+✅ youtube.captions().download() - Descargar texto de captions
+
+OPERACIONES PROHIBIDAS (NUNCA IMPLEMENTAR):
+❌ youtube.videos().delete()     - PROHIBIDO: Borrar videos
+❌ youtube.playlists().delete()  - PROHIBIDO: Borrar listas
+❌ youtube.captions().delete()   - PROHIBIDO: Borrar subtítulos
+❌ youtube.captions().update()   - PROHIBIDO: Editar subtítulos
+❌ youtube.captions().insert()   - PROHIBIDO: Subir subtítulos
+
+Este script SOLO lee datos, NUNCA modifica ni borra contenido de YouTube.
+Solo el propietario del canal puede borrar/editar videos manualmente.
+==========================================
 """
 
 import os
@@ -185,7 +202,7 @@ def download_caption(youtube, caption_id, tfmt='srt'):
 def save_caption_to_supabase(sb: Client, video_id, language, caption_text):
     """
     Guarda caption en Supabase
-    USA UPSERT para NO sobreescribir captions existentes
+    Verifica si existe primero para evitar duplicados
 
     Args:
         sb: Cliente de Supabase
@@ -195,12 +212,24 @@ def save_caption_to_supabase(sb: Client, video_id, language, caption_text):
     """
     now = datetime.now(timezone.utc).isoformat()
 
-    sb.table("captions").upsert({
-        "video_id": video_id,
-        "language": language,
-        "caption_text": caption_text,
-        "imported_at": now
-    }, on_conflict=["video_id", "language"]).execute()
+    # Verificar si ya existe este caption
+    existing = sb.table("captions") \
+        .select("id") \
+        .eq("video_id", video_id) \
+        .eq("language", language) \
+        .execute()
+
+    if existing.data:
+        # Ya existe, no hacer nada (NO sobrescribir)
+        pass
+    else:
+        # No existe, insertar nuevo
+        sb.table("captions").insert({
+            "video_id": video_id,
+            "language": language,
+            "caption_text": caption_text,
+            "imported_at": now
+        }).execute()
 
 
 def main():
