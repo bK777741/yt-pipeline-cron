@@ -30,8 +30,14 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from io import BytesIO
 from urllib.request import urlopen
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # Computer Vision gratuito
 try:
@@ -74,21 +80,8 @@ class AnalizadorMiniaturas:
         """
         Analiza miniatura de un video
         """
-        # Obtener URL de miniatura desde Supabase
-        video = self.sb.table("videos")\
-            .select("thumbnail_url")\
-            .eq("video_id", video_id)\
-            .execute()
-
-        if not video.data:
-            print(f"[WARN] Video {video_id}: No encontrado en DB")
-            return None
-
-        thumbnail_url = video.data[0].get('thumbnail_url')
-
-        if not thumbnail_url:
-            print(f"[WARN] Video {video_id}: Sin URL de miniatura")
-            return None
+        # Construir URL de miniatura de YouTube (maxresdefault es la mejor calidad)
+        thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
 
         # Descargar miniatura
         try:
@@ -606,10 +599,10 @@ def main():
                     'composicion_densidad_tercios': comp['densidad_tercios']
                 }).execute()
 
-                print("✅ Analisis guardado en Supabase (ml_thumbnail_analysis)")
+                print("[OK] Analisis guardado en Supabase (ml_thumbnail_analysis)")
                 print()
             except Exception as e:
-                print(f"⚠️  No se pudo guardar en DB: {str(e)[:100]}")
+                print(f"[WARN] No se pudo guardar en DB: {str(e)[:100]}")
                 print("   (Analisis completado pero no persistido)")
                 print()
         else:
@@ -620,17 +613,16 @@ def main():
         print("Analizando todas las miniaturas...")
         print()
 
-        # Obtener videos con miniaturas
+        # Obtener todos los videos (las miniaturas se construyen desde video_id)
         videos = sb.table("videos")\
-            .select("video_id, thumbnail_url")\
-            .not_.is_("thumbnail_url", "null")\
+            .select("video_id")\
             .execute()
 
         if not videos.data:
-            print("[INFO] No hay videos con miniaturas en DB")
+            print("[INFO] No hay videos en DB")
             sys.exit(0)
 
-        print(f"Encontrados: {len(videos.data)} videos con miniaturas")
+        print(f"Encontrados: {len(videos.data)} videos")
         print()
 
         exitos = 0
@@ -643,12 +635,55 @@ def main():
             resultado = analizador.analizar_video(video_id)
 
             if resultado:
-                print(f"  ✓ Contraste: {resultado['contraste']['nivel']}")
-                print(f"  ✓ Vibrancia: {resultado['colores_dominantes']['vibrancia']}")
-                print(f"  ✓ Rostros: {resultado['rostros']['detectados']}")
+                print(f"  [OK] Contraste: {resultado['contraste']['nivel']}")
+                print(f"  [OK] Vibrancia: {resultado['colores_dominantes']['vibrancia']}")
+                print(f"  [OK] Rostros: {resultado['rostros']['detectados']}")
+
+                # Guardar en Supabase
+                try:
+                    import json
+                    dim = resultado['dimensiones']
+                    cont = resultado['contraste']
+                    cols = resultado['colores_dominantes']
+                    sat = resultado['saturacion']
+                    brill = resultado['brillo']
+                    rostros = resultado['rostros']
+                    ocr = resultado.get('texto_ocr', {})
+                    comp = resultado['composicion']
+
+                    sb.table("ml_thumbnail_analysis").insert({
+                        'video_id': resultado['video_id'],
+                        'timestamp': resultado['timestamp'],
+                        'thumbnail_url': resultado['thumbnail_url'],
+                        'ancho': dim['ancho'],
+                        'alto': dim['alto'],
+                        'contraste_valor': cont['valor'],
+                        'contraste_nivel': cont['nivel'],
+                        'contraste_calidad': cont['calidad'],
+                        'colores_vibrancia': cols['vibrancia'],
+                        'colores_saturacion_promedio': cols['saturacion_promedio'],
+                        'colores_top': json.dumps(cols['colores']),
+                        'saturacion_valor': sat['valor'],
+                        'saturacion_nivel': sat['nivel'],
+                        'brillo_valor': brill['valor'],
+                        'brillo_nivel': brill['nivel'],
+                        'rostros_detectados': rostros['detectados'],
+                        'rostros_nivel': rostros['nivel'],
+                        'rostros_info': json.dumps(rostros['rostros']),
+                        'ocr_texto': ocr.get('texto'),
+                        'ocr_num_caracteres': ocr.get('num_caracteres'),
+                        'ocr_num_palabras': ocr.get('num_palabras'),
+                        'ocr_nivel': ocr.get('nivel'),
+                        'composicion_calidad': comp['calidad'],
+                        'composicion_densidad_tercios': comp['densidad_tercios']
+                    }).execute()
+                    print(f"  [OK] Guardado en Supabase")
+                except Exception as e:
+                    print(f"  [WARN] No se pudo guardar en DB: {str(e)[:50]}")
+
                 exitos += 1
             else:
-                print(f"  ✗ Error al analizar")
+                print(f"  [ERROR] Error al analizar")
                 fallos += 1
 
             print()

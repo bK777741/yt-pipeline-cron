@@ -19,11 +19,11 @@ PROCESO:
 5. Crear miniatura que llame atencion junto al viral
 
 TIPOS DE HIJACKING:
-- 🔄 EXTENSION: "Parte 2", "Mas trucos", "Lo que no te dijeron"
+- [EMOJI] EXTENSION: "Parte 2", "Mas trucos", "Lo que no te dijeron"
 - 🆚 COMPARACION: "X vs Y", "Mejor alternativa a X"
-- 🔍 PROFUNDIZACION: "Explicacion detallada de X"
-- ⚠️  CORRECCION: "Errores de X", "La verdad sobre X"
-- 💡 ALTERNATIVA: "Como hacer X mas facil"
+- [SEARCH] PROFUNDIZACION: "Explicacion detallada de X"
+- [WARN]  CORRECCION: "Errores de X", "La verdad sobre X"
+- [EMOJI] ALTERNATIVA: "Como hacer X mas facil"
 
 VENTAJA: Trafico de calidad (usuarios ya interesados en el tema)
 
@@ -41,8 +41,14 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from collections import defaultdict
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno desde .env
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # YouTube Data API (para buscar videos de competencia)
 try:
@@ -110,7 +116,7 @@ class SistemaRoboSesiones:
         """
         print()
         print("=" * 80)
-        print("🎯 SISTEMA DE ROBO DE SESIONES")
+        print("[TARGET] SISTEMA DE ROBO DE SESIONES")
         print("Detecta oportunidades de hijacking")
         print("=" * 80)
         print()
@@ -137,7 +143,7 @@ class SistemaRoboSesiones:
                         'ideas_hijacking': ideas
                     })
 
-                    print(f"  ✓ {video['title'][:50]}")
+                    print(f"  [OK] {video['title'][:50]}")
                     print(f"    VPH: {analisis.get('vph', 0):.1f} | Ideas: {len(ideas)}")
 
             print()
@@ -406,7 +412,7 @@ class SistemaRoboSesiones:
         """
         print()
         print("=" * 80)
-        print("📊 REPORTE DE OPORTUNIDADES DE HIJACKING")
+        print("[STATS] REPORTE DE OPORTUNIDADES DE HIJACKING")
         print("=" * 80)
         print()
 
@@ -418,7 +424,7 @@ class SistemaRoboSesiones:
             return {}
 
         # Top 10 oportunidades
-        print("🏆 TOP 10 OPORTUNIDADES:")
+        print("[TOP] TOP 10 OPORTUNIDADES:")
         print()
 
         for i, op in enumerate(oportunidades[:10], 1):
@@ -452,7 +458,7 @@ class SistemaRoboSesiones:
 
         # Recomendaciones
         print("=" * 80)
-        print("🎯 RECOMENDACIONES")
+        print("[TARGET] RECOMENDACIONES")
         print("=" * 80)
         print()
 
@@ -538,9 +544,9 @@ def crear_cliente_youtube():
     """
     Crea cliente de YouTube Data API
     """
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID", "").strip()
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip()
-    refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "").strip()
+    client_id = os.environ.get("YT_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("YT_CLIENT_SECRET", "").strip()
+    refresh_token = os.environ.get("YT_REFRESH_TOKEN", "").strip()
 
     if not all([client_id, client_secret, refresh_token]):
         print("[ERROR] Credenciales OAuth no configuradas")
@@ -565,7 +571,7 @@ def main():
     """
     print()
     print("=" * 80)
-    print("🎯 SISTEMA DE ROBO DE SESIONES (HIJACKING)")
+    print("[TARGET] SISTEMA DE ROBO DE SESIONES (HIJACKING)")
     print("Detecta videos virales para hijackear")
     print("=" * 80)
     print()

@@ -3,7 +3,7 @@
 """
 ANALIZADOR DE CONTINUACION DE SESION
 =====================================
-🏆 ULTRA SANTO GRIAL 🏆
+[ELITE] ULTRA SANTO GRIAL [ELITE]
 
 Analiza si tus videos EXTIENDEN o MATAN sesiones de visualizacion
 Usa YouTube Analytics API para metricas de sesion
@@ -14,9 +14,9 @@ METRICAS CLAVE:
 - avgSessionsPerUser: Promedio de videos vistos por sesion
 
 CLASIFICACION:
-- 🟢 EXTENSORES: Videos que mantienen al espectador viendo mas
-- 🔴 ASESINOS: Videos que hacen que el espectador se vaya
-- 🟡 NEUTROS: Videos sin impacto especial
+- [EMOJI] EXTENSORES: Videos que mantienen al espectador viendo mas
+- [EMOJI] ASESINOS: Videos que hacen que el espectador se vaya
+- [EMOJI] NEUTROS: Videos sin impacto especial
 
 ESTRATEGIA:
 1. Identificar videos EXTENSORES → Promocionarlos masivamente
@@ -34,8 +34,14 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno desde .env
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # YouTube Analytics
 try:
@@ -49,7 +55,7 @@ except ImportError:
 
 class AnalizadorSesionContinuacion:
     """
-    🏆 ULTRA SANTO GRIAL 🏆
+    [ELITE] ULTRA SANTO GRIAL [ELITE]
     Analiza continuacion de sesiones
     """
 
@@ -63,7 +69,7 @@ class AnalizadorSesionContinuacion:
         """
         print()
         print("=" * 80)
-        print("🏆 ULTRA SANTO GRIAL - ANALISIS DE CONTINUACION DE SESION 🏆")
+        print("[ELITE] ULTRA SANTO GRIAL - ANALISIS DE CONTINUACION DE SESION [ELITE]")
         print("=" * 80)
         print()
 
@@ -92,8 +98,10 @@ class AnalizadorSesionContinuacion:
         for i, video in enumerate(videos.data, 1):
             video_id = video['video_id']
             title = video['title']
+            # Sanitizar título (remover emojis)
+            title_clean = title.encode('ascii', 'ignore').decode('ascii')
 
-            print(f"[{i}/{len(videos.data)}] {title[:50]}...")
+            print(f"[{i}/{len(videos.data)}] {title_clean[:50]}...")
 
             try:
                 metricas = self._obtener_metricas_sesion(
@@ -117,10 +125,10 @@ class AnalizadorSesionContinuacion:
                     simbolo = self._get_simbolo_clasificacion(clasificacion['tipo'])
                     print(f"  {simbolo} {clasificacion['tipo']}: Ratio={clasificacion['ratio']:.2f}")
                 else:
-                    print(f"  ⚠️  Sin datos suficientes")
+                    print(f"  [WARN]  Sin datos suficientes")
 
             except Exception as e:
-                print(f"  ❌ Error: {str(e)[:50]}")
+                print(f"  [ERROR] Error: {str(e)[:50]}")
 
             print()
 
@@ -317,7 +325,7 @@ class AnalizadorSesionContinuacion:
         # Imprimir reporte
         print()
         print("=" * 80)
-        print("📊 REPORTE COMPLETO")
+        print("[STATS] REPORTE COMPLETO")
         print("=" * 80)
         print()
 
@@ -333,14 +341,14 @@ class AnalizadorSesionContinuacion:
         print()
 
         if extensores_elite:
-            print("🏆 TOP 5 EXTENSORES ELITE (Videos de ORO):")
+            print("[ELITE] TOP 5 EXTENSORES ELITE (Videos de ORO):")
             for i, video in enumerate(extensores_elite[:5], 1):
                 print(f"  {i}. {video['title'][:60]}")
                 print(f"     Ratio: {video['ratio']:.2f} | Retencion: {video['avg_view_percentage']:.1f}%")
             print()
 
         if asesinos_criticos:
-            print("☠️  TOP 5 ASESINOS CRITICOS (Videos TOXICOS):")
+            print("[CRITICAL]  TOP 5 ASESINOS CRITICOS (Videos TOXICOS):")
             for i, video in enumerate(sorted(asesinos_criticos, key=lambda x: x['ratio'])[:5], 1):
                 print(f"  {i}. {video['title'][:60]}")
                 print(f"     Ratio: {video['ratio']:.2f} | Retencion: {video['avg_view_percentage']:.1f}%")
@@ -349,7 +357,7 @@ class AnalizadorSesionContinuacion:
 
         # Recomendaciones estrategicas
         print("=" * 80)
-        print("🎯 RECOMENDACIONES ESTRATEGICAS")
+        print("[TARGET] RECOMENDACIONES ESTRATEGICAS")
         print("=" * 80)
         print()
 
@@ -407,13 +415,13 @@ class AnalizadorSesionContinuacion:
         Obtiene simbolo visual segun clasificacion
         """
         simbolos = {
-            'EXTENSOR_ELITE': '🏆',
-            'EXTENSOR': '🟢',
-            'NEUTRO': '🟡',
-            'ASESINO_LEVE': '🟠',
-            'ASESINO_CRITICO': '🔴'
+            'EXTENSOR_ELITE': '[ELITE]',
+            'EXTENSOR': '[OK]',
+            'NEUTRO': '[INFO]',
+            'ASESINO_LEVE': '[WARN]',
+            'ASESINO_CRITICO': '[CRITICAL]'
         }
-        return simbolos.get(tipo, '⚪')
+        return simbolos.get(tipo, '[?]')
 
 
 def crear_cliente_analytics():
@@ -421,16 +429,16 @@ def crear_cliente_analytics():
     Crea cliente de YouTube Analytics API
     """
     # Cargar credenciales OAuth
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID", "").strip()
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip()
-    refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "").strip()
+    client_id = os.environ.get("YT_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("YT_CLIENT_SECRET", "").strip()
+    refresh_token = os.environ.get("YT_REFRESH_TOKEN", "").strip()
 
     if not all([client_id, client_secret, refresh_token]):
         print("[ERROR] Credenciales OAuth no configuradas")
         print("        Se requieren:")
-        print("        - YOUTUBE_CLIENT_ID")
-        print("        - YOUTUBE_CLIENT_SECRET")
-        print("        - YOUTUBE_REFRESH_TOKEN")
+        print("        - YT_CLIENT_ID")
+        print("        - YT_CLIENT_SECRET")
+        print("        - YT_REFRESH_TOKEN")
         sys.exit(1)
 
     # Crear credenciales
@@ -455,7 +463,7 @@ def main():
     """
     print()
     print("=" * 80)
-    print("🏆 ULTRA SANTO GRIAL 🏆")
+    print("[ELITE] ULTRA SANTO GRIAL [ELITE]")
     print("Analizador de Continuacion de Sesion")
     print("=" * 80)
     print()

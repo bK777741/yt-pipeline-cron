@@ -30,8 +30,14 @@ import math
 from datetime import datetime, timezone
 from collections import Counter
 from typing import Dict, List, Optional
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # NLP gratuito
 try:
@@ -95,7 +101,7 @@ class AnalizadorTextoGratis:
             return None
 
         # Combinar todos los segmentos
-        texto_completo = " ".join([c['text'] for c in captions.data if c.get('text')])
+        texto_completo = " ".join([c['caption_text'] for c in captions.data if c.get('caption_text')])
 
         if not texto_completo.strip():
             print(f"[WARN] Video {video_id}: Subtitulos vacios")
@@ -549,10 +555,10 @@ def main():
                     'diversidad_palabras_totales': div['palabras_totales']
                 }).execute()
 
-                print("✅ Analisis guardado en Supabase (ml_text_analysis)")
+                print("[OK] Analisis guardado en Supabase (ml_text_analysis)")
                 print()
             except Exception as e:
-                print(f"⚠️  No se pudo guardar en DB: {str(e)[:100]}")
+                print(f"[WARN] No se pudo guardar en DB: {str(e)[:100]}")
                 print("   (Analisis completado pero no persistido)")
                 print()
         else:
@@ -587,12 +593,55 @@ def main():
             resultado = analizador.analizar_video(video_id)
 
             if resultado:
-                print(f"  ✓ Tema: {resultado['tema_principal']['tema']}")
-                print(f"  ✓ Ritmo: {resultado['ritmo']['tipo']}")
-                print(f"  ✓ Hooks: {resultado['hooks']['nivel']}")
+                print(f"  [OK] Tema: {resultado['tema_principal']['tema']}")
+                print(f"  [OK] Ritmo: {resultado['ritmo']['tipo']}")
+                print(f"  [OK] Hooks: {resultado['hooks']['nivel']}")
+
+                # Guardar en Supabase
+                try:
+                    import json
+                    tema = resultado['tema_principal']
+                    ritmo = resultado['ritmo']
+                    hooks = resultado['hooks']
+                    sent = resultado['sentimiento']
+                    kw_nicho = resultado['keywords_nicho']
+                    div = resultado['diversidad_lexical']
+
+                    sb.table("ml_text_analysis").insert({
+                        'video_id': resultado['video_id'],
+                        'timestamp': resultado['timestamp'],
+                        'longitud_caracteres': resultado['longitud_caracteres'],
+                        'longitud_palabras': resultado['longitud_palabras'],
+                        'tema_principal': tema['tema'],
+                        'tema_confianza': tema['confianza'],
+                        'top_keywords': json.dumps(tema['top_keywords']),
+                        'ritmo_tipo': ritmo['tipo'],
+                        'ritmo_variacion': ritmo['variacion'],
+                        'ritmo_longitud_promedio': ritmo['longitud_promedio'],
+                        'ritmo_num_oraciones': ritmo['num_oraciones'],
+                        'hooks_total': hooks['total'],
+                        'hooks_intensidad': hooks['intensidad'],
+                        'hooks_nivel': hooks['nivel'],
+                        'hooks_por_categoria': json.dumps(hooks['por_categoria']),
+                        'sentimiento_tipo': sent['tipo'],
+                        'sentimiento_polaridad': sent['polaridad'],
+                        'sentimiento_subjetividad': sent['subjetividad'],
+                        'nicho_score_total': kw_nicho['score_total'],
+                        'nicho_densidad': kw_nicho['densidad'],
+                        'nicho_keywords_detectadas': json.dumps(kw_nicho['keywords_detectadas']),
+                        'nicho_num_keywords': kw_nicho['num_keywords'],
+                        'diversidad_tipo': div['tipo'],
+                        'diversidad_valor': div['diversidad'],
+                        'diversidad_palabras_unicas': div['palabras_unicas'],
+                        'diversidad_palabras_totales': div['palabras_totales']
+                    }).execute()
+                    print(f"  [OK] Guardado en Supabase")
+                except Exception as e:
+                    print(f"  [WARN] No se pudo guardar en DB: {str(e)[:50]}")
+
                 exitos += 1
             else:
-                print(f"  ✗ Error al analizar")
+                print(f"  [ERROR] Error al analizar")
                 fallos += 1
 
             print()

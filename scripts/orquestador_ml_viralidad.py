@@ -36,8 +36,14 @@ import sys
 import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno desde .env
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 class OrquestadorMLViralidad:
@@ -72,7 +78,7 @@ class OrquestadorMLViralidad:
         """
         print()
         print("=" * 80)
-        print("🧠 ORQUESTADOR ML DE VIRALIDAD")
+        print("ORQUESTADOR ML DE VIRALIDAD")
         print("Analisis completo del canal")
         print("=" * 80)
         print()
@@ -135,7 +141,7 @@ class OrquestadorMLViralidad:
 
         print()
         print("=" * 80)
-        print("✅ ANALISIS COMPLETADO")
+        print("ANALISIS COMPLETADO")
         print("=" * 80)
         print()
         print(f"Duracion: {duracion:.1f} segundos")
@@ -155,7 +161,7 @@ class OrquestadorMLViralidad:
 
         # Obtener videos con subtitulos
         videos = self.sb.table("videos")\
-            .select("video_id, title, thumbnail_url")\
+            .select("video_id, title")\
             .execute()
 
         if not videos.data:
@@ -199,33 +205,30 @@ class OrquestadorMLViralidad:
         try:
             # Obtener videos
             videos = self.sb.table("videos")\
-                .select("video_id, title, vph")\
-                .order("vph", desc=True)\
+                .select("video_id, title")\
+                .order("published_at", desc=True)\
                 .execute()
 
             if not videos.data:
                 print("[WARN] No hay videos en DB")
                 return
 
-            # Clasificacion simplificada basada en VPH
-            # (Version completa usa Analytics API - ver analizador_sesion_continuacion.py)
+            # Clasificacion simplificada SIN VPH
+            # NOTA: Para clasificacion completa (EXTENSORES/ASESINOS) se requiere:
+            # - Agregar columna 'vph' a tabla videos, O
+            # - Ejecutar analizador_sesion_continuacion.py con Analytics API
 
+            print("[INFO] Clasificacion simplificada sin VPH")
+            print("       Para clasificacion completa EXTENSORES/ASESINOS:")
+            print("       1. Agregar columna 'vph' a tabla videos, o")
+            print("       2. Ejecutar: python scripts/analizador_sesion_continuacion.py")
+            print()
+
+            # Por ahora: clasificacion basica (todos neutros)
             extensores_elite = []
             extensores = []
-            neutros = []
+            neutros = videos.data  # Todos neutros sin datos de VPH
             asesinos = []
-
-            for video in videos.data:
-                vph = video.get('vph', 0)
-
-                if vph >= 100:
-                    extensores_elite.append(video)
-                elif vph >= 50:
-                    extensores.append(video)
-                elif vph >= 20:
-                    neutros.append(video)
-                else:
-                    asesinos.append(video)
 
             self.resultados['clasificacion_sesion'] = {
                 'extensores_elite': len(extensores_elite),
@@ -237,10 +240,10 @@ class OrquestadorMLViralidad:
             }
 
             print(f"Clasificacion completada:")
-            print(f"  🏆 Extensores ELITE: {len(extensores_elite)}")
-            print(f"  🟢 Extensores: {len(extensores)}")
-            print(f"  🟡 Neutros: {len(neutros)}")
-            print(f"  🔴 Asesinos: {len(asesinos)}")
+            print(f"  [ELITE] Extensores ELITE: {len(extensores_elite)}")
+            print(f"  [OK] Extensores: {len(extensores)}")
+            print(f"  [NEUTRO] Neutros: {len(neutros)}")
+            print(f"  [WARN] Asesinos: {len(asesinos)}")
             print()
 
         except Exception as e:
@@ -401,7 +404,7 @@ class OrquestadorMLViralidad:
         # Imprimir recomendaciones
         print()
         print("=" * 80)
-        print("🎯 RECOMENDACIONES ESTRATEGICAS")
+        print("RECOMENDACIONES ESTRATEGICAS")
         print("=" * 80)
         print()
 
@@ -434,7 +437,7 @@ class OrquestadorMLViralidad:
                 json.dump(self.resultados, f, indent=2, ensure_ascii=False)
 
             print()
-            print(f"📄 Reporte guardado en: {output_path}")
+            print(f"[REPORTE] Guardado en: {output_path}")
             print()
 
         except Exception as e:
@@ -447,7 +450,7 @@ def main():
     """
     print()
     print("=" * 80)
-    print("🧠 ORQUESTADOR ML DE VIRALIDAD")
+    print("ORQUESTADOR ML DE VIRALIDAD")
     print("Sistema completo de analisis y optimizacion")
     print("=" * 80)
     print()
@@ -481,7 +484,7 @@ def main():
 
     print()
     print("=" * 80)
-    print("✅ SISTEMA ML COMPLETADO")
+    print("SISTEMA ML COMPLETADO")
     print("=" * 80)
     print()
 

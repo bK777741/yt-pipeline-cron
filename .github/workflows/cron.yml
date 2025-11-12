@@ -64,27 +64,28 @@ on:
       - 'requirements.txt'
       - '*.py'
   schedule:
-    # Secuencia diaria de jobs (horas en UTC, equivalentes a Lima UTC-5)
-    - cron: "0 5 * * *"    # 1. import_daily (00:00 Lima)
-    - cron: "10 5 * * *"   # 2. import_captions (00:10 Lima)
-    - cron: "20 5 * * *"   # 3. import_recent_comments (00:20 Lima)
-    - cron: "30 5 * * *"   # 4. detect_thumbnail_objects (00:30 Lima)
-    - cron: "40 5 * * *"   # 5. extract_thumbnail_text (00:40 Lima)
-    - cron: "50 5 * * *"   # 6. convert_captions_to_script (00:50 Lima)
-    - cron: "0 6 * * *"    # 7. reconcile_comments (01:00 Lima)
-    - cron: "10 6 * * *"   # 8. fetch_comment_sentiment (01:10 Lima)
-    - cron: "20 6 * * *"   # 9. build_niche_profile (01:20 Lima)
-    - cron: "25 6 * * *"   # 10. build_channel_profile (01:25 Lima) ← NUEVO
-    - cron: "30 6 * * *"   # 11. scan_competencia_auto_nicho (01:30 Lima)
-    - cron: "40 6 * * *"   # 12. maint_metrics (01:40 Lima)
-    - cron: "45 6 * * *"   # 13. unified_analytics (01:45 Lima) ← NUEVO (reemplaza fetch_video_analytics + fetch_monetization_metrics)
-    - cron: "0 7 * * *"    # 14. compute_posting_schedule (02:00 Lima)
-    - cron: "20 7 * * *"   # 15. fetch_trending_videos (02:20 Lima)
-    - cron: "25 7 * * *"   # 16. detect_hidden_gems (02:25 Lima) ← NUEVO
-    - cron: "28 7 * * *"   # 17. refine_trending_with_niche (02:28 Lima) ← NUEVO
-    - cron: "30 7 * * *"   # 18. fetch_search_trends (02:30 Lima)
-    - cron: "40 7 * * *"   # 19. purge_buffer (02:40 Lima)
-    - cron: "50 7 * * *"   # 20. export_sync_watermarks (02:50 Lima)
+    # Secuencia CADA 2 DÍAS (optimizado para GitHub Actions limits)
+    # Ahorra ~900 min/mes para reservar espacio al sistema de A/B testing
+    - cron: "0 5 */2 * *"    # 1. import_daily (00:00 Lima) - Cada 2 días
+    - cron: "10 5 */2 * *"   # 2. import_captions (00:10 Lima)
+    - cron: "20 5 */2 * *"   # 3. import_recent_comments (00:20 Lima)
+    - cron: "30 5 */2 * *"   # 4. detect_thumbnail_objects (00:30 Lima)
+    - cron: "40 5 */2 * *"   # 5. extract_thumbnail_text (00:40 Lima)
+    - cron: "50 5 */2 * *"   # 6. convert_captions_to_script (00:50 Lima)
+    - cron: "0 6 */2 * *"    # 7. reconcile_comments (01:00 Lima)
+    - cron: "10 6 */2 * *"   # 8. fetch_comment_sentiment (01:10 Lima)
+    - cron: "20 6 */2 * *"   # 9. build_niche_profile (01:20 Lima)
+    - cron: "25 6 */2 * *"   # 10. build_channel_profile (01:25 Lima)
+    - cron: "30 6 */2 * *"   # 11. scan_competencia_auto_nicho (01:30 Lima)
+    - cron: "40 6 */2 * *"   # 12. maint_metrics (01:40 Lima)
+    - cron: "45 6 */2 * *"   # 13. unified_analytics (01:45 Lima)
+    - cron: "0 7 */2 * *"    # 14. compute_posting_schedule (02:00 Lima)
+    - cron: "20 7 */2 * *"   # 15. fetch_trending_videos (02:20 Lima)
+    - cron: "25 7 */2 * *"   # 16. detect_hidden_gems (02:25 Lima)
+    - cron: "28 7 */2 * *"   # 17. refine_trending_with_niche (02:28 Lima)
+    - cron: "30 7 */2 * *"   # 18. fetch_search_trends (02:30 Lima)
+    - cron: "40 7 */2 * *"   # 19. purge_buffer (02:40 Lima)
+    - cron: "50 7 */2 * *"   # 20. export_sync_watermarks (02:50 Lima)
 
 jobs:
   # =====================================================================================

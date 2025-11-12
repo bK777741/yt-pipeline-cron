@@ -38,8 +38,14 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from collections import defaultdict
+from pathlib import Path
+from dotenv import load_dotenv
 
 from supabase import create_client, Client
+
+# Cargar variables de entorno desde .env
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # YouTube Analytics
 try:
@@ -72,7 +78,7 @@ class DetectorVideosPasarela:
         """
         print()
         print("=" * 80)
-        print("🚪 DETECTOR DE VIDEOS PASARELA")
+        print("[PASARELA] DETECTOR DE VIDEOS PASARELA")
         print("Identifica puntos de entrada al nicho")
         print("=" * 80)
         print()
@@ -116,14 +122,14 @@ class DetectorVideosPasarela:
                     resultados.append(analisis)
 
                     if analisis['es_pasarela']:
-                        print(f"  🚪 PASARELA: Score={analisis['pasarela_score']:.1f}")
+                        print(f"  [PASARELA] PASARELA: Score={analisis['pasarela_score']:.1f}")
                     else:
                         print(f"  ⚪ Normal: Score={analisis['pasarela_score']:.1f}")
                 else:
-                    print(f"  ⚠️  Sin datos")
+                    print(f"  [WARN]  Sin datos")
 
             except Exception as e:
-                print(f"  ❌ Error: {str(e)[:50]}")
+                print(f"  [ERROR] Error: {str(e)[:50]}")
 
             print()
 
@@ -416,7 +422,7 @@ class DetectorVideosPasarela:
 
         print()
         print("=" * 80)
-        print("📊 REPORTE DE PASARELAS")
+        print("[STATS] REPORTE DE PASARELAS")
         print("=" * 80)
         print()
 
@@ -425,13 +431,13 @@ class DetectorVideosPasarela:
         print()
 
         print("DISTRIBUCION:")
-        print(f"  🚪 Pasarelas ELITE: {len(pasarelas_elite)}")
-        print(f"  🚪 Pasarelas normales: {len(pasarelas) - len(pasarelas_elite)}")
+        print(f"  [PASARELA] Pasarelas ELITE: {len(pasarelas_elite)}")
+        print(f"  [PASARELA] Pasarelas normales: {len(pasarelas) - len(pasarelas_elite)}")
         print(f"  ⚪ No pasarelas: {len(no_pasarelas)}")
         print()
 
         if pasarelas_elite:
-            print("🏆 TOP PASARELAS ELITE:")
+            print("[TOP] TOP PASARELAS ELITE:")
             for i, video in enumerate(pasarelas_elite[:5], 1):
                 print(f"  {i}. {video['title'][:60]}")
                 print(f"     Score: {video['pasarela_score']:.1f}")
@@ -441,7 +447,7 @@ class DetectorVideosPasarela:
             print()
 
         if pasarelas:
-            print("🎯 QUERIES FALTANTES (Oportunidades):")
+            print("[TARGET] QUERIES FALTANTES (Oportunidades):")
             print()
             print("  Queries fundamentales sin video pasarela:")
 
@@ -464,7 +470,7 @@ class DetectorVideosPasarela:
 
         # Recomendaciones
         print("=" * 80)
-        print("🎯 RECOMENDACIONES ESTRATEGICAS")
+        print("[TARGET] RECOMENDACIONES ESTRATEGICAS")
         print("=" * 80)
         print()
 
@@ -533,9 +539,9 @@ def crear_cliente_analytics():
     """
     Crea cliente de YouTube Analytics API
     """
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID", "").strip()
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip()
-    refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "").strip()
+    client_id = os.environ.get("YT_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("YT_CLIENT_SECRET", "").strip()
+    refresh_token = os.environ.get("YT_REFRESH_TOKEN", "").strip()
 
     if not all([client_id, client_secret, refresh_token]):
         print("[ERROR] Credenciales OAuth no configuradas")
@@ -560,7 +566,7 @@ def main():
     """
     print()
     print("=" * 80)
-    print("🚪 DETECTOR DE VIDEOS PASARELA")
+    print("[PASARELA] DETECTOR DE VIDEOS PASARELA")
     print("Identifica puntos de entrada al nicho")
     print("=" * 80)
     print()

@@ -1,0 +1,53 @@
+name: CEREBRO 5 - Análisis Estratégico Semanal
+
+on:
+  schedule:
+    # Cada lunes a las 9:00 AM UTC
+    - cron: "0 9 * * 1"
+
+  workflow_dispatch:  # Permite ejecutar manualmente
+
+jobs:
+  analisis-estrategico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Límite de 15 minutos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install supabase python-dotenv google-api-python-client google-auth google-generativeai
+
+      - name: Run CEREBRO 5 - Orquestador Estratégico
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "=========================================="
+          echo "CEREBRO 5: Orquestador Estratégico"
+          echo "Fecha: $(date)"
+          echo "=========================================="
+          python scripts/orquestador_estrategico.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: cerebro5-logs-${{ github.run_number }}
+          path: |
+            *.log
+            output/*.json
+          retention-days: 30
