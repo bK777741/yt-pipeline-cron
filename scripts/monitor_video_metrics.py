@@ -40,9 +40,10 @@ def get_youtube_analytics_service():
         print(f"[ERROR] No se pudo crear servicio Analytics: {e}")
         return None
 
-def get_video_ctr(video_id, published_date):
+def get_video_analytics(video_id, published_date):
     """
-    Obtiene CTR del video desde YouTube Analytics API
+    Obtiene métricas completas del video desde YouTube Analytics API
+    INCLUYE: CTR, Retention, Traffic Sources
     CONSUMO API: 0 unidades (Analytics API tiene cuota separada de 50,000/dia)
     """
     try:
@@ -55,7 +56,7 @@ def get_video_ctr(video_id, published_date):
         start_date = published_date.strftime('%Y-%m-%d')
         end_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
-        # Query Analytics API
+        # Query 1: Métricas generales (CTR, Retention)
         response = analytics.reports().query(
             ids='channel==MINE',
             startDate=start_date,
@@ -65,17 +66,51 @@ def get_video_ctr(video_id, published_date):
             filters=f'video=={video_id}'
         ).execute()
 
-        if response.get('rows'):
-            # cardClickRate es el CTR de thumbnails/titulos
-            ctr = response['rows'][0][5] if len(response['rows'][0]) > 5 else None
-            print(f"[CTR] {video_id}: {ctr}%")
-            return ctr
+        metrics = {}
 
-        print(f"[WARN] No hay datos de CTR para {video_id}")
-        return None
+        if response.get('rows'):
+            row = response['rows'][0]
+            metrics['ctr'] = row[5] if len(row) > 5 else None
+            metrics['retention'] = row[3] if len(row) > 3 else None  # averageViewPercentage
+            metrics['avg_view_duration'] = row[2] if len(row) > 2 else None
+            print(f"[ANALYTICS] {video_id}: CTR={metrics.get('ctr')}% Retention={metrics.get('retention')}%")
+
+        # Query 2: Traffic Sources (para saber si problema es título o miniatura)
+        try:
+            traffic_response = analytics.reports().query(
+                ids='channel==MINE',
+                startDate=start_date,
+                endDate=end_date,
+                metrics='views,estimatedMinutesWatched',
+                dimensions='insightTrafficSourceType',
+                filters=f'video=={video_id}',
+                sort='-views'
+            ).execute()
+
+            if traffic_response.get('rows'):
+                traffic_sources = {}
+                total_views = sum(row[0] for row in traffic_response['rows'])
+
+                for row in traffic_response['rows']:
+                    source_type = row[0]
+                    views = row[1]
+                    percentage = (views / total_views * 100) if total_views > 0 else 0
+                    traffic_sources[source_type] = {
+                        'views': views,
+                        'percentage': percentage
+                    }
+
+                metrics['traffic_sources'] = traffic_sources
+                print(f"[TRAFFIC] Top source: {list(traffic_sources.keys())[0] if traffic_sources else 'None'}")
+
+        except Exception as e:
+            print(f"[WARN] No se pudieron obtener traffic sources: {e}")
+            metrics['traffic_sources'] = {}
+
+        return metrics if metrics else None
 
     except Exception as e:
-        print(f"[ERROR] Error obteniendo CTR: {e}")
+        print(f"[ERROR] Error obteniendo analytics: {e}")
         return None
 
 def send_email(subject, body):
@@ -103,48 +138,111 @@ def send_email(subject, body):
         print(f"[ERROR] No se pudo enviar email: {e}")
         return False
 
-def save_learning_data(sb, video, ctr, vph, views, checkpoint):
+def save_learning_data(sb, video, analytics_data, vph, views, checkpoint):
     """
     Guarda datos de aprendizaje en user_preferences (Stage 2 Learning)
     Aprende de metricas reales de YouTube
+    INCLUYE: Análisis de retention + traffic sources para determinar QUÉ falla
     """
     try:
-        # Clasificar titulo basado en metricas
+        ctr = analytics_data.get('ctr') if analytics_data else None
+        retention = analytics_data.get('retention') if analytics_data else None
+        traffic_sources = analytics_data.get('traffic_sources', {}) if analytics_data else {}
+
+        # ANÁLISIS INTELIGENTE: ¿Qué está fallando? (título vs miniatura)
+        problem_source = "unknown"
+
+        if ctr is not None and ctr < 5.0:
+            # CTR BAJO - Determinar si problema es título o miniatura
+
+            # HEURÍSTICA 1: Retention alta + CTR bajo = MINIATURA mala (NO título)
+            if retention and retention > 40:
+                problem_source = "thumbnail"
+                print(f"[DIAGNOSIS] CTR bajo ({ctr:.1f}%) pero retention alta ({retention:.1f}%) → PROBLEMA: MINIATURA")
+                print(f"[SKIP LEARNING] NO se aprende del título (está bien, problema es miniatura)")
+                return None  # NO aprender del título
+
+            # HEURÍSTICA 2: Traffic sources - De dónde viene el tráfico
+            if traffic_sources:
+                top_source = max(traffic_sources.items(), key=lambda x: x[1]['percentage'])[0]
+
+                # YT_SEARCH = vienen de búsqueda (título es importante)
+                if top_source == 'YT_SEARCH':
+                    problem_source = "title"
+                    print(f"[DIAGNOSIS] Tráfico principal: BÚSQUEDA → PROBLEMA: TÍTULO")
+
+                # BROWSE_FEATURES = vienen de inicio/recomendados (miniatura es importante)
+                elif top_source in ['BROWSE', 'BROWSE_FEATURES', 'RELATED_VIDEO']:
+                    problem_source = "thumbnail"
+                    print(f"[DIAGNOSIS] Tráfico principal: {top_source} → PROBLEMA: MINIATURA")
+                    print(f"[SKIP LEARNING] NO se aprende del título")
+                    return None  # NO aprender del título
+
+            # HEURÍSTICA 3: Retention baja + CTR bajo = AMBOS malos
+            if retention and retention < 30:
+                problem_source = "both"
+                print(f"[DIAGNOSIS] CTR bajo ({ctr:.1f}%) + retention baja ({retention:.1f}%) → PROBLEMA: TÍTULO + MINIATURA")
+
+            # Si no hay datos suficientes para determinar, no aprender
+            if problem_source == "unknown" and not retention:
+                print(f"[SKIP LEARNING] CTR bajo pero no hay datos de retention/traffic para determinar causa")
+                return None
+
+        # CLASIFICAR TÍTULO basado en métricas
+        user_action = None
+        reason = None
+
         if ctr is not None and ctr >= 8.0:
             # CTR >= 8% = EXCELENTE (título ganador)
             user_action = 'approved'
             reason = f'ctr_excelente_{ctr:.1f}%'
+            problem_source = "none"
+
         elif ctr is not None and ctr >= 5.0:
             # CTR 5-8% = BUENO (título aceptable)
             user_action = 'approved'
             reason = f'ctr_bueno_{ctr:.1f}%'
-        elif ctr is not None and ctr < 5.0:
-            # CTR < 5% = MALO (título rechazado)
+            problem_source = "none"
+
+        elif ctr is not None and ctr < 5.0 and problem_source == "title":
+            # CTR < 5% Y problema confirmado es el TÍTULO
             user_action = 'rejected'
-            reason = f'ctr_bajo_{ctr:.1f}%'
+            reason = f'ctr_bajo_{ctr:.1f}%_problema_titulo'
+
+        elif ctr is not None and ctr < 5.0 and problem_source == "both":
+            # CTR < 5% Y problema es TÍTULO + MINIATURA
+            user_action = 'rejected'
+            reason = f'ctr_bajo_{ctr:.1f}%_problema_titulo_y_miniatura'
+
         elif vph >= 100:
             # Sin CTR pero VPH alto = titulo probablemente bueno
             user_action = 'approved'
             reason = f'vph_alto_{vph}'
+            problem_source = "none"
+
         elif vph < 25:
             # VPH bajo = titulo probablemente malo
             user_action = 'rejected'
             reason = f'vph_bajo_{vph}'
+            problem_source = "title"
         else:
-            # Neutro, no guardar
+            # Neutro o problema es solo miniatura, no guardar
             return None
 
-        # Guardar en user_preferences
+        # Guardar en user_preferences con diagnóstico completo
         sb.table("user_preferences").insert({
             "content_type": "titulo",
             "original_content": video['title_original'],
             "user_action": user_action,
             "metadata": {
                 "ctr": ctr,
+                "retention": retention,
                 "vph": vph,
                 "views": views,
                 "checkpoint": checkpoint,
                 "reason": reason,
+                "problem_source": problem_source,
+                "traffic_sources": traffic_sources,
                 "video_id": video['video_id'],
                 "published_at": video['published_at'],
                 "learning_source": "stage2_metrics"
@@ -153,10 +251,13 @@ def save_learning_data(sb, video, ctr, vph, views, checkpoint):
         }).execute()
 
         print(f"[LEARNING] {user_action.upper()}: '{video['title_original'][:50]}...' ({reason})")
+        print(f"           Diagnóstico: problema_source={problem_source}")
         return user_action
 
     except Exception as e:
         print(f"[ERROR] Error guardando learning data: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def generate_new_title_variants(original_title, sb):
@@ -212,16 +313,37 @@ C: [título variante C]"""
             'variant_c': f"{original_title} - TUTORIAL 2025"
         }
 
-def send_alert_email(video, ctr, vph, views, new_variants):
-    """Envia email de ALERTA cuando CTR < 5%"""
+def send_alert_email(video, analytics_data, vph, views, new_variants, problem_source="title"):
+    """Envia email de ALERTA cuando CTR < 5% con diagnóstico de QUÉ falla"""
+    ctr = analytics_data.get('ctr') if analytics_data else None
+    retention = analytics_data.get('retention') if analytics_data else None
+
     subject = f"🚨 ALERTA: CTR BAJO ({ctr:.1f}%) - {video['title_original'][:40]}..."
+
+    # Mensaje específico según qué está fallando
+    if problem_source == "title":
+        problem_msg = "⚠️ PROBLEMA DETECTADO: <strong>TÍTULO</strong>"
+        action_msg = "Cambia el TÍTULO del video en YouTube Studio"
+        color = "#dc2626"
+    elif problem_source == "thumbnail":
+        problem_msg = "⚠️ PROBLEMA DETECTADO: <strong>MINIATURA</strong>"
+        action_msg = "Cambia la MINIATURA del video en YouTube Studio (el título está bien)"
+        color = "#ea580c"
+    elif problem_source == "both":
+        problem_msg = "⚠️ PROBLEMA DETECTADO: <strong>TÍTULO + MINIATURA</strong>"
+        action_msg = "Cambia AMBOS: título Y miniatura en YouTube Studio"
+        color = "#b91c1c"
+    else:
+        problem_msg = "⚠️ PROBLEMA: No se pudo determinar la causa exacta"
+        action_msg = "Revisa manualmente título y miniatura"
+        color = "#6b7280"
 
     body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <div style="background: #dc2626; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+        <div style="background: {color}; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
             <h2 style="margin: 0;">🚨 ALERTA: CTR CRÍTICO</h2>
-            <p style="font-size: 18px; margin: 10px 0 0 0;">Es necesario CAMBIAR el título AHORA</p>
+            <p style="font-size: 18px; margin: 10px 0 0 0;">{problem_msg}</p>
         </div>
 
         <h3 style="color: #dc2626;">Título Actual (RECHAZADO):</h3>
@@ -235,6 +357,10 @@ def send_alert_email(video, ctr, vph, views, new_variants):
                 <td style="padding: 10px; border: 1px solid #fca5a5;"><strong>CTR</strong></td>
                 <td style="padding: 10px; border: 1px solid #fca5a5; color: #dc2626; font-weight: bold;">{ctr:.1f}% (< 5% es CRÍTICO)</td>
             </tr>
+            {f'''<tr style="background: {'#dcfce7' if retention and retention > 40 else '#fee2e2' if retention and retention < 30 else '#f3f4f6'};">
+                <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>Retention (Retención)</strong></td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; color: {'#16a34a' if retention and retention > 40 else '#dc2626' if retention and retention < 30 else '#6b7280'};">{retention:.1f}%</td>
+            </tr>''' if retention else ''}
             <tr>
                 <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>VPH</strong></td>
                 <td style="padding: 10px; border: 1px solid #e5e7eb;">{vph:,}</td>
@@ -244,6 +370,11 @@ def send_alert_email(video, ctr, vph, views, new_variants):
                 <td style="padding: 10px; border: 1px solid #e5e7eb;">{views:,}</td>
             </tr>
         </table>
+
+        <div style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+            <p style="margin: 0;"><strong>📊 DIAGNÓSTICO AUTOMÁTICO:</strong></p>
+            <p style="margin: 5px 0 0 0;">{action_msg}</p>
+        </div>
 
         <h3 style="color: #16a34a;">Nuevos Títulos Sugeridos (A/B Testing):</h3>
         <ul style="list-style: none; padding: 0;">
@@ -342,11 +473,16 @@ def monitor_videos():
             # Calcular VPH
             vph = int(views / hours_since) if hours_since > 0 else 0
 
-            # Obtener CTR desde YouTube Analytics API (solo en checkpoint 24h, 48h, 72h)
+            # Obtener Analytics completo (CTR, Retention, Traffic) en checkpoint 24h, 48h, 72h
+            analytics_data = None
             ctr = None
+            retention = None
             if checkpoint in ["checkpoint_24h", "checkpoint_48h", "checkpoint_72h"]:
                 published_date = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00'))
-                ctr = get_video_ctr(video['video_id'], published_date)
+                analytics_data = get_video_analytics(video['video_id'], published_date)
+                if analytics_data:
+                    ctr = analytics_data.get('ctr')
+                    retention = analytics_data.get('retention')
 
             # Guardar metricas en JSONB
             current_metrics = json.loads(video.get('metrics', '{}') or '{}')
@@ -387,20 +523,48 @@ def monitor_videos():
                 nivel = "BUENO" if vph >= 20 else "NORMAL" if vph >= 10 else "BAJO"
                 color = "#10b981" if vph >= 20 else "#f59e0b" if vph >= 10 else "#ef4444"
 
-            # STAGE 2 LEARNING: Guardar en user_preferences
-            save_learning_data(sb, video, ctr, vph, views, checkpoint)
+            # STAGE 2 LEARNING: Guardar en user_preferences (con diagnóstico de problema)
+            learning_result = save_learning_data(sb, video, analytics_data, vph, views, checkpoint)
 
             # ALERTA CRÍTICA: Si CTR < 5% en checkpoint 24h, enviar alerta con nuevas variantes
             if checkpoint == "checkpoint_24h" and ctr is not None and ctr < 5.0:
-                print(f"[ALERT] CTR CRÍTICO: {ctr:.1f}% - Generando nuevos títulos...")
-                new_variants = generate_new_title_variants(video['title_original'], sb)
-                send_alert_email(video, ctr, vph, views, new_variants)
+                # Determinar qué está fallando
+                problem_source = "unknown"
 
-                # Guardar variantes sugeridas en monitoring
-                sb.table("video_monitoring").update({
-                    'alert_sent_at': now.isoformat(),
-                    'suggested_titles': json.dumps(new_variants)
-                }).eq('video_id', video['video_id']).execute()
+                if retention and retention > 40:
+                    problem_source = "thumbnail"
+                    print(f"[ALERT] CTR CRÍTICO pero problema es MINIATURA - NO se envían títulos nuevos")
+                elif analytics_data and analytics_data.get('traffic_sources'):
+                    top_source = max(analytics_data['traffic_sources'].items(), key=lambda x: x[1]['percentage'])[0]
+                    if top_source == 'YT_SEARCH':
+                        problem_source = "title"
+                    elif top_source in ['BROWSE', 'BROWSE_FEATURES', 'RELATED_VIDEO']:
+                        problem_source = "thumbnail"
+                elif retention and retention < 30:
+                    problem_source = "both"
+                else:
+                    problem_source = "title"  # Por defecto, asumir título
+
+                print(f"[ALERT] CTR CRÍTICO: {ctr:.1f}% - Problema: {problem_source}")
+
+                # Solo generar nuevos títulos si el problema es título o ambos
+                if problem_source in ["title", "both", "unknown"]:
+                    new_variants = generate_new_title_variants(video['title_original'], sb)
+                    send_alert_email(video, analytics_data, vph, views, new_variants, problem_source)
+
+                    # Guardar variantes sugeridas en monitoring
+                    sb.table("video_monitoring").update({
+                        'alert_sent_at': now.isoformat(),
+                        'suggested_titles': json.dumps(new_variants),
+                        'problem_diagnosed': problem_source
+                    }).eq('video_id', video['video_id']).execute()
+                else:
+                    # Solo enviar alerta sin nuevos títulos
+                    send_alert_email(video, analytics_data, vph, views, {}, problem_source)
+                    sb.table("video_monitoring").update({
+                        'alert_sent_at': now.isoformat(),
+                        'problem_diagnosed': problem_source
+                    }).eq('video_id', video['video_id']).execute()
 
             # Enviar notificacion normal
             email_body = f"""
