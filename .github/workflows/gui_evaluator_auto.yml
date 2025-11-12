@@ -1,0 +1,49 @@
+name: CEREBRO 1 - Evaluador de Guiones Automático
+
+on:
+  schedule:
+    # Cada 6 horas: 00:00, 06:00, 12:00, 18:00 UTC
+    - cron: "0 */6 * * *"
+
+  workflow_dispatch:  # Permite ejecutar manualmente
+
+jobs:
+  evaluate-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install supabase python-dotenv
+
+      - name: Evaluar Guiones Pendientes (CEREBRO 1)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "=========================================="
+          echo "CEREBRO 1: Evaluador de Guiones Cloud"
+          echo "Fecha: $(date)"
+          echo "=========================================="
+          python scripts/gui_evaluator_cloud.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cerebro1-logs-${{ github.run_number }}
+          path: |
+            *.log
+            output/*.json
+          retention-days: 30
