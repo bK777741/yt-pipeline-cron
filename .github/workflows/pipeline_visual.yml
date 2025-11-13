@@ -99,7 +99,7 @@ jobs:
           set -euo pipefail
           export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
           export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
-          python ${{ steps.pydir.outputs.PYDIR }}/import_captions.py
+          python ${{ steps.pydir.outputs.PYDIR }}/captura_subtitulos_github.py
 
   visual_import_recent_comments:
     name: "VISUAL · PASO 2b: Importar Comentarios Recientes"
