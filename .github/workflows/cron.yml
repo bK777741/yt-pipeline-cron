@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_daily')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '0 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -186,7 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_captions')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '10 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '10 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -275,7 +275,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'import_recent_comments')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '20 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '20 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -343,7 +343,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'detect_thumbnail_objects')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '30 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '30 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -406,7 +406,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'extract_thumbnail_text')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '40 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '40 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -469,7 +469,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'convert_captions_to_script')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '50 5 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '50 5 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -532,7 +532,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'reconcile_comments')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '0 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -598,7 +598,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_comment_sentiment')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '10 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '10 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -661,7 +661,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'build_niche_profile')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '20 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '20 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -733,7 +733,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'scan_competencia_auto_nicho')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '30 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '30 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -816,7 +816,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'maint_metrics')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '40 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '40 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -905,7 +905,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_video_analytics')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '50 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '50 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -994,7 +994,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'compute_posting_schedule')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '0 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1080,7 +1080,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'fetch_monetization_metrics')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '10 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '10 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1361,7 +1361,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'purge_buffer')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '40 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '40 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1439,7 +1439,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'export_sync_watermarks')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '50 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '50 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1507,7 +1507,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'build_channel_profile')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '25 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '25 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1568,7 +1568,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'unified_analytics')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '45 6 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '45 6 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1624,7 +1624,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'detect_hidden_gems')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '25 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '25 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1680,7 +1680,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'refine_trending_with_niche')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '28 7 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '28 7 */2 * *')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
