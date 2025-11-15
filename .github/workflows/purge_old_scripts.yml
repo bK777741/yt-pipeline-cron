@@ -110,7 +110,7 @@ jobs:
 
       - name: Crear artifact con logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: purge-logs-${{ github.run_number }}
           path: purge_log.txt
