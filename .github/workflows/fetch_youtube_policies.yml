@@ -1,13 +1,14 @@
-name: Fetch YouTube policies (quincenal)
+name: "[DEPRECATED] Fetch YouTube policies (quincenal)"
 
 on:
   workflow_dispatch:
-  schedule:
-    # 09:00 UTC los días 1 y 16 de cada mes (04:00 Lima aprox)
-    - cron: "0 9 1,16 * *"
+  # schedule:
+  #   # 09:00 UTC los días 1 y 16 de cada mes (04:00 Lima aprox)
+  #   - cron: "0 9 1,16 * *"
 
 jobs:
   scrape:
+    if: false  # WORKFLOW DESHABILITADO - Script fetch_youtube_policies.py no existe
     runs-on: ubuntu-latest
     defaults:
       run:
