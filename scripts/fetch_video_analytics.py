@@ -57,16 +57,17 @@ def save_analytics(sb, video_id, data):
 def main():
     creds, supabase_url, supabase_key = load_env()
     yt_analytics, sb = init_clients(creds, supabase_url, supabase_key)
-    
-    # Obtener últimos 20 vídeos
-    resp = sb.table("videos").select("video_id").order("imported_at", desc=True).limit(20).execute()
+
+    # MISMA LÓGICA QUE import_daily: Procesar videos NUEVOS primero (por published_at)
+    # Ordenar por published_at (fecha de publicación en YouTube) NO por imported_at
+    resp = sb.table("videos").select("video_id").order("published_at", desc=True).limit(20).execute()
     video_ids = [row["video_id"] for row in resp.data]
-    
+
     for vid in video_ids:
         data = fetch_analytics(yt_analytics, vid)
         if data:
             save_analytics(sb, vid, data)
-    
+
     print(f"[fetch_video_analytics] Métricas guardadas: {len(video_ids)}")
 
 if __name__ == "__main__":
