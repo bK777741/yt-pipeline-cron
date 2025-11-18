@@ -329,31 +329,68 @@ def main():
         creds, supabase_url, supabase_key, batch, channel_id = load_env()
         yt, sb = init_clients(creds, supabase_url, supabase_key)
 
-        # Obtener el video MÁS ANTIGUO que ya tenemos en Supabase
-        oldest_video_response = sb.table("videos").select("published_at").order("published_at", desc=False).limit(1).execute()
-
-        published_before = None
-        if oldest_video_response.data:
-            # Si ya tenemos videos, buscar ANTES del más antiguo (hacia atrás en el tiempo)
-            oldest_date = oldest_video_response.data[0]["published_at"]
-            from datetime import datetime
-            published_before = datetime.fromisoformat(oldest_date.replace('Z', '+00:00'))
-            print(f"[import_daily] Buscando videos publicados ANTES de: {published_before.isoformat()}")
-        else:
-            print("[import_daily] Primera importación: buscando los 50 videos más recientes")
-
         # Obtener todos los videos existentes en Supabase
         existing_videos_response = sb.table("videos").select("video_id").execute()
         existing_ids = {video["video_id"] for video in existing_videos_response.data}
 
-        # Obtener hasta 50 videos (progresivamente hacia videos más antiguos)
-        videos = fetch_videos_with_pagination(yt, channel_id, published_before, max_results=50)
+        # PASO 1: BUSCAR VIDEOS NUEVOS (publicados DESPUÉS del más reciente)
+        print("[import_daily] PASO 1: Buscando videos NUEVOS...")
+        newest_video_response = sb.table("videos").select("published_at").order("published_at", desc=True).limit(1).execute()
+
+        videos_nuevos = []
+        if newest_video_response.data:
+            # Si ya tenemos videos, buscar DESPUÉS del más reciente
+            newest_date = newest_video_response.data[0]["published_at"]
+            from datetime import datetime
+            published_after = datetime.fromisoformat(newest_date.replace('Z', '+00:00'))
+            print(f"[import_daily] Buscando videos publicados DESPUES de: {published_after.isoformat()}")
+            videos_nuevos = fetch_videos(yt, channel_id, published_after, max_results=50)
+        else:
+            print("[import_daily] Primera importacion: buscando los 50 videos mas recientes")
+            videos_nuevos = fetch_videos_with_pagination(yt, channel_id, None, max_results=50)
+
+        # Filtrar nuevos que no estén en Supabase
+        videos_nuevos_filtrados = [v for v in videos_nuevos if v["video_id"] not in existing_ids]
+
+        if videos_nuevos_filtrados:
+            print(f"[import_daily] Encontrados {len(videos_nuevos_filtrados)} videos NUEVOS. Insertando...")
+            upsert_videos(sb, videos_nuevos_filtrados)
+            print(f"[import_daily] Videos NUEVOS insertados: {len(videos_nuevos_filtrados)}")
+
+            # Analizar miniaturas de videos nuevos
+            thumbs_response = sb.table("video_thumbnail_analysis").select("video_id", count="exact").execute()
+            analyzed_total = thumbs_response.count if thumbs_response.count else 0
+
+            if analyzed_total < 120:
+                analizar_restantes = 120 - analyzed_total
+                analizar_videos = videos_nuevos_filtrados[:analizar_restantes]
+                analyze_and_save_thumbnails(sb, analizar_videos)
+                print(f"[import_daily] Videos analizados a fondo: {len(analizar_videos)}")
+
+            return  # Si encontramos videos nuevos, terminamos aquí
+
+        print("[import_daily] No hay videos nuevos.")
+
+        # PASO 2: BUSCAR VIDEOS ANTIGUOS (solo si NO hay nuevos)
+        print("[import_daily] PASO 2: Buscando videos ANTIGUOS...")
+        oldest_video_response = sb.table("videos").select("published_at").order("published_at", desc=False).limit(1).execute()
+
+        published_before = None
+        if oldest_video_response.data:
+            # Buscar ANTES del más antiguo (hacia atrás en el tiempo)
+            oldest_date = oldest_video_response.data[0]["published_at"]
+            from datetime import datetime
+            published_before = datetime.fromisoformat(oldest_date.replace('Z', '+00:00'))
+            print(f"[import_daily] Buscando videos publicados ANTES de: {published_before.isoformat()}")
+
+        # Obtener hasta 50 videos antiguos
+        videos_antiguos = fetch_videos_with_pagination(yt, channel_id, published_before, max_results=50)
 
         # Filtrar los que ya están en Supabase
-        new_videos = [v for v in videos if v["video_id"] not in existing_ids]
+        new_videos = [v for v in videos_antiguos if v["video_id"] not in existing_ids]
 
         if not new_videos:
-            print("[import_daily] No hay videos nuevos para insertar.")
+            print("[import_daily] No hay videos antiguos nuevos para insertar.")
             print(f"[import_daily] Total de videos en Supabase: {len(existing_ids)}")
             return
 
