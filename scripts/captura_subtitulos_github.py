@@ -186,6 +186,13 @@ def get_transcript_for_video(video_id, languages=['es', 'es-419', 'es-ES', 'en']
     except Exception as e:
         error_msg = str(e)
 
+        # DEBUG: Mostrar el error completo para diagnosticar
+        import traceback
+        print(f"  [DEBUG] Error completo:")
+        print(f"  [DEBUG] Tipo: {type(e).__name__}")
+        print(f"  [DEBUG] Mensaje: {error_msg}")
+        traceback.print_exc()
+
         # Errores comunes
         if "No transcripts" in error_msg or "Subtitles are disabled" in error_msg or "Could not retrieve" in error_msg or "TranscriptsDisabled" in error_msg:
             print(f"  [INFO] Video sin transcripción disponible")

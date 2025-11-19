@@ -24,10 +24,12 @@ import os
 from google_auth_oauthlib.flow import InstalledAppFlow
 from pathlib import Path
 
-# Scope completo que incluye acceso a Captions
+# Scopes necesarios para YouTube API (TODOS los permisos requeridos)
 SCOPES = [
-    'https://www.googleapis.com/auth/youtube.force-ssl',  # Acceso completo (incluye captions)
-    'https://www.googleapis.com/auth/yt-analytics.readonly',  # Analytics (ya lo tienes)
+    'https://www.googleapis.com/auth/youtube.force-ssl',           # YouTube Data API
+    'https://www.googleapis.com/auth/yt-analytics.readonly',       # YouTube Analytics API (CRÍTICO)
+    'https://www.googleapis.com/auth/yt-analytics-monetary.readonly',  # Monetización (estimatedRevenue)
+    'https://www.googleapis.com/auth/youtubepartner',              # Content ID (para datos completos)
 ]
 
 def generar_nuevo_token():

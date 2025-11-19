@@ -85,7 +85,11 @@ jobs:
       - name: Instalar dependencias de Python
         run: pip install -r requirements.txt
       - name: Forzar actualización de youtube-transcript-api
-        run: pip install --upgrade --force-reinstall youtube-transcript-api==1.2.3
+        run: |
+          pip install --upgrade --force-reinstall youtube-transcript-api==1.2.3
+          echo "=== VERIFICANDO VERSION INSTALADA ==="
+          pip show youtube-transcript-api
+          python -c "from youtube_transcript_api import YouTubeTranscriptApi; print('Métodos disponibles:', dir(YouTubeTranscriptApi))"
       - name: Detectar carpeta de scripts
         id: pydir
         run: |
