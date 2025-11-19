@@ -1,0 +1,146 @@
+name: 🧠 Entrenamiento ML Semanal
+
+on:
+  # Ejecutar cada Domingo a las 02:00 UTC (Sábado 9 PM Lima)
+  schedule:
+    - cron: "0 2 * * 0"  # Domingos 02:00 UTC
+
+  # Permitir ejecución manual
+  workflow_dispatch:
+    inputs:
+      min_scripts:
+        description: 'Mínimo de scripts requeridos'
+        required: false
+        default: '50'
+
+jobs:
+  train_ml_model:
+    name: "🧠 Entrenar Modelo ML con Guiones"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install supabase python-dotenv
+
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then
+            echo "PYDIR=scripts" >> $GITHUB_OUTPUT
+          else
+            echo "PYDIR=." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verificar datos disponibles
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python -c "
+          import os
+          from supabase import create_client
+
+          sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+          result = sb.table('video_scripts').select('id', count='exact').not_.is_('script_text', 'null').execute()
+
+          total = result.count
+          min_required = int('${{ inputs.min_scripts }}' or '50')
+
+          print(f'Scripts disponibles: {total}')
+          print(f'Mínimo requerido: {min_required}')
+
+          if total < min_required:
+              print(f'⚠️ SALTAR ENTRENAMIENTO - Insuficientes scripts ({total} < {min_required})')
+              print('SKIP_TRAINING=true' >> open(os.environ['GITHUB_ENV'], 'a').write(''))
+              exit(0)
+          else:
+              print(f'✅ PROCEDER CON ENTRENAMIENTO - {total} scripts disponibles')
+              print('SKIP_TRAINING=false' >> open(os.environ['GITHUB_ENV'], 'a').write(''))
+          "
+
+      - name: Entrenar modelo ML
+        if: env.SKIP_TRAINING != 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "========================================="
+          echo "🧠 INICIANDO ENTRENAMIENTO ML"
+          echo "========================================="
+          python ${{ steps.pydir.outputs.PYDIR }}/train_gui_model.py
+
+      - name: Subir modelo entrenado a Supabase Storage
+        if: env.SKIP_TRAINING != 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python -c "
+          import os
+          import json
+          from datetime import datetime
+          from supabase import create_client
+
+          # Verificar si existe el modelo
+          if not os.path.exists('trained_gui_model.json'):
+              print('⚠️ Modelo no generado - saltar upload')
+              exit(0)
+
+          # Leer modelo
+          with open('trained_gui_model.json', 'r', encoding='utf-8') as f:
+              model_data = json.load(f)
+
+          # Conectar a Supabase
+          sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+
+          # Guardar en tabla ml_models (si existe)
+          try:
+              sb.table('ml_models').insert({
+                  'model_name': 'gui_script_generator',
+                  'model_version': datetime.now().strftime('%Y%m%d_%H%M%S'),
+                  'model_data': model_data,
+                  'trained_at': datetime.now().isoformat(),
+                  'scripts_count': model_data.get('total_guiones_analizados', 0),
+                  'metrics': {
+                      'avg_palabras': model_data.get('longitud_promedio_palabras', 0),
+                      'ganchos_unicos': len(model_data.get('ganchos_frecuentes', [])),
+                      'palabras_clave': len(model_data.get('palabras_clave_nicho', []))
+                  }
+              }).execute()
+              print('✅ Modelo guardado en Supabase tabla ml_models')
+          except Exception as e:
+              print(f'⚠️ Tabla ml_models no existe: {e}')
+              print('📝 Modelo generado pero no guardado en Supabase')
+          "
+
+      - name: Resumen final
+        if: always()
+        run: |
+          echo ""
+          echo "========================================="
+          echo "📊 RESUMEN ENTRENAMIENTO ML"
+          echo "========================================="
+          if [ "${{ env.SKIP_TRAINING }}" = "true" ]; then
+            echo "⏭️ Entrenamiento omitido (datos insuficientes)"
+            echo "   Esperar más scripts antes de entrenar"
+          else
+            echo "✅ Entrenamiento completado exitosamente"
+            echo "   Modelo: trained_gui_model.json"
+            echo "   Próximo entrenamiento: Próximo domingo"
+          fi
+          echo "========================================="
