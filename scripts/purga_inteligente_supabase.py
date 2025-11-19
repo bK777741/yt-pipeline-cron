@@ -36,6 +36,7 @@ PURGA_CONFIG = {
         "videos": 180,            # 6 meses
         "video_statistics": 90,   # 3 meses
         "comments": 90,           # 3 meses
+        "captions": 180,          # 6 meses (subtítulos - críticos para scripts)
         "trending_videos": 30,    # 1 mes
         "ai_analysis": 180,       # 6 meses
         "sync_log": 30            # 1 mes
@@ -73,6 +74,7 @@ def estimar_uso_storage_gb() -> float:
         "videos": 0.002,              # 2 KB por video
         "video_statistics": 0.0005,   # 0.5 KB por stat
         "comments": 0.001,            # 1 KB por comment
+        "captions": 0.007,            # 7 KB por caption (promedio 7,000 caracteres)
         "trending_videos": 0.002,     # 2 KB por trending
         "ai_analysis": 0.005,         # 5 KB por análisis
         "thumbnails_analysis": 0.003, # 3 KB por thumbnail
@@ -161,6 +163,7 @@ def purgar_tabla(tabla: str, retencion_dias: int, conservar_recientes_dias: int 
         "videos": "created_at",
         "video_statistics": "snapshot_at",
         "comments": "imported_at",
+        "captions": "imported_at",
         "trending_videos": "created_at",
         "ai_analysis": "analyzed_at",
         "sync_log": "started_at"
