@@ -134,16 +134,15 @@ def get_transcript_for_video(video_id, languages=['es', 'es-419', 'es-ES', 'en']
         tuple: (transcript_text, language_code) o (None, None) si falla
     """
     try:
-        api = YouTubeTranscriptApi()
-
-        # Intentar obtener transcripción en idiomas preferidos
-        transcript = api.fetch(video_id, languages=languages)
+        # FIX 2025-11-19: Usar método correcto de youtube-transcript-api
+        # get_transcript() es un método estático, NO requiere instanciar
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
 
         # Combinar todos los fragmentos en un solo texto
-        full_text = "\n".join([entry.text for entry in transcript])
+        full_text = "\n".join([entry['text'] for entry in transcript])
 
         # Detectar idioma usado (primer fragmento tiene metadata)
-        detected_lang = languages[0] if transcript else 'es'
+        detected_lang = transcript[0].get('language', languages[0]) if transcript else 'es'
 
         return full_text, detected_lang
 
@@ -151,7 +150,7 @@ def get_transcript_for_video(video_id, languages=['es', 'es-419', 'es-ES', 'en']
         error_msg = str(e)
 
         # Errores comunes
-        if "No transcripts found" in error_msg or "Subtitles are disabled" in error_msg:
+        if "No transcripts found" in error_msg or "Subtitles are disabled" in error_msg or "Could not retrieve" in error_msg:
             print(f"  [INFO] Video sin transcripción disponible")
         else:
             print(f"  [ERROR] Error obteniendo transcripción: {error_msg[:150]}")
