@@ -581,7 +581,7 @@ jobs:
   visual_refine_trending_with_niche:
     name: "VISUAL · PASO 5e.1: Refinar Tendencias con Nicho"
     runs-on: ubuntu-latest
-    needs: [visual_fetch_trending_videos, visual_detect_hidden_gems]
+    needs: [visual_fetch_trending_videos]  # Removido visual_detect_hidden_gems (deprecado)
     if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
     steps:
       - name: Checkout code
@@ -811,34 +811,38 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python ${{ steps.pydir.outputs.PYDIR }}/unified_analytics.py
 
-  visual_detect_hidden_gems:
-    name: "VISUAL · PASO 18: Detectar Hidden Gems"
-    runs-on: ubuntu-latest
-    needs: [visual_fetch_trending_videos]
-    if: ${{ inputs.segment == 'all' || inputs.segment == 'paso_5' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          clean: true
-          fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: 'pip'
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
-      - name: Detectar carpeta de scripts
-        id: pydir
-        run: |
-          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
-      - name: Run
-        env:
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python ${{ steps.pydir.outputs.PYDIR }}/detect_hidden_gems.py
+  # ============================================================================
+  # DEPRECADO 2025-11-19: visual_detect_hidden_gems
+  # Ahorro: 2,200 unidades API/día = 66,000 unidades/mes
+  # ============================================================================
+  # visual_detect_hidden_gems:
+  #   name: "VISUAL · PASO 18: Detectar Hidden Gems - DEPRECADO"
+  #   runs-on: ubuntu-latest
+  #   needs: [visual_fetch_trending_videos]
+  #   if: false  # DESACTIVADO PERMANENTEMENTE
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: main
+  #         clean: true
+  #         fetch-depth: 0
+  #     - name: Setup Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #         cache: 'pip'
+  #     - name: Instalar dependencias
+  #       run: pip install -r requirements.txt
+  #     - name: Detectar carpeta de scripts
+  #       id: pydir
+  #       run: |
+  #         if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+  #     - name: Run
+  #       env:
+  #         YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+  #         YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+  #         YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+  #         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  #         SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  #       run: python ${{ steps.pydir.outputs.PYDIR }}/detect_hidden_gems.py
