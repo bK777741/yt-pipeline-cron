@@ -124,9 +124,9 @@ def get_videos_without_captions(sb: Client, limit=30):
 
 def get_transcript_for_video(video_id, languages=['es', 'es-419', 'es-ES', 'en']):
     """
-    Obtiene transcripción de un video usando youtube-transcript-api
+    Obtiene transcripción de un video usando youtube-transcript-api v1.2+
 
-    COMPATIBLE con versiones antiguas (>=0.6.0) que usan YouTubeTranscriptApi directamente
+    COMPATIBLE con youtube-transcript-api v1.2.3+ que usa list() y fetch()
 
     Args:
         video_id (str): ID del video
@@ -136,34 +136,50 @@ def get_transcript_for_video(video_id, languages=['es', 'es-419', 'es-ES', 'en']
         tuple: (transcript_text, language_code) o (None, None) si falla
     """
     try:
-        # FIX 2025-11-19: Usar API antigua compatible con versión >=0.6.0
-        # Probar cada idioma hasta encontrar uno disponible
-        transcript_data = None
+        # FIX 2025-11-19: Usar API v1.2.3+ con list() y fetch()
+        # Crear instancia del API
+        api = YouTubeTranscriptApi()
+
+        # Listar todas las transcripciones disponibles
+        transcript_list = api.list(video_id)
+
+        # Intentar encontrar transcripción en idiomas preferidos
+        transcript_obj = None
         detected_lang = 'es'
 
         for lang in languages:
             try:
-                # Intentar obtener transcripción en este idioma
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+                transcript_obj = transcript_list.find_transcript([lang])
                 detected_lang = lang
                 break
             except:
                 continue
 
-        # Si no funcionó con idiomas específicos, intentar sin especificar idioma
-        if not transcript_data:
+        # Si no encontró ninguno, usar el primero disponible
+        if not transcript_obj:
             try:
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-                detected_lang = 'es'
+                # Obtener la primera transcripción disponible
+                available = list(transcript_list)
+                if available:
+                    transcript_obj = available[0]
+                    detected_lang = transcript_obj.language_code
             except:
                 pass
+
+        if not transcript_obj:
+            print(f"  [INFO] Video sin transcripción disponible")
+            return None, None
+
+        # Obtener los datos de la transcripción
+        transcript_data = transcript_obj.fetch()
 
         if not transcript_data:
             print(f"  [INFO] Video sin transcripción disponible")
             return None, None
 
         # Combinar todos los fragmentos en un solo texto
-        full_text = "\n".join([entry['text'] for entry in transcript_data])
+        # Los objetos FetchedTranscriptSnippet tienen atributo .text (no son dicts)
+        full_text = "\n".join([entry.text for entry in transcript_data])
 
         return full_text, detected_lang
 
