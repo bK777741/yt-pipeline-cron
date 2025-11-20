@@ -42,7 +42,8 @@ def is_spam(text, author_created_at):
         return True, "Palabra prohibida"
     
     # Detectar canales nuevos (<30 días)
-    if author_created_at > (datetime.now(timezone.utc) - timedelta(days=30)).isoformat():
+    # FIX 2025-11-20: Validar que author_created_at no sea None antes de comparar
+    if author_created_at is not None and author_created_at > (datetime.now(timezone.utc) - timedelta(days=30)).isoformat():
         return True, "Canal nuevo"
     
     return False, ""
