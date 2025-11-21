@@ -23,6 +23,7 @@ on:
         options:
           - ""
           - import_daily
+          - vincular_content_generated_auto
           - import_captions
           - import_recent_comments
           - detect_thumbnail_objects
@@ -67,7 +68,8 @@ on:
     # Secuencia DIARIA (optimizado para captura continua)
     # Workflows ML y A/B Testing tienen sus propios schedules
     - cron: "0 5 * * *"    # 1. import_daily (00:00 Lima)
-    - cron: "10 5 * * *"   # 2. import_captions (00:10 Lima)
+    - cron: "5 5 * * *"    # 2. vincular_content_generated_auto (00:05 Lima)
+    - cron: "10 5 * * *"   # 3. import_captions (00:10 Lima)
     - cron: "20 5 * * *"   # 3. import_recent_comments (00:20 Lima)
     - cron: "30 5 * * *"   # 4. detect_thumbnail_objects (00:30 Lima)
     - cron: "40 5 * * *"   # 5. extract_thumbnail_text (00:40 Lima)
@@ -1733,3 +1735,57 @@ jobs:
         with:
           path: .checkpoint/refine_trending_with_niche
           key: refine-trending-with-niche-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+
+  vincular_content_generated_auto:
+    name: "PASO 2: Vincular Content Generated Automático (00:05 Lima)"
+    runs-on: ubuntu-latest
+    needs: import_daily
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.only == '' || inputs.only == 'vincular_content_generated_auto')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '5 5 * * *')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          clean: true
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+      - name: Detectar carpeta de scripts
+        id: pydir
+        run: |
+          if [ -d scripts ]; then echo "PYDIR=scripts" >> $GITHUB_OUTPUT; else echo "PYDIR=." >> $GITHUB_OUTPUT; fi
+      - name: SLOT (día Lima)
+        id: slot
+        run: echo "SLOT=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      - name: Restore checkpoint
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .checkpoint/vincular_content_generated_auto
+          key: vincular-content-generated-auto-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
+      - name: Skip (ya corrido este slot hoy)
+        if: ${{ steps.cache.outputs['cache-hit'] == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        run: echo "vincular_content_generated_auto ya completado hoy para este slot. Skip."
+      - name: Run
+        if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
+        env:
+          SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
+          export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
+          python ${{ steps.pydir.outputs.PYDIR }}/vincular_content_generated_auto.py
+      - name: Save checkpoint
+        if: ${{ (steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true')) && !(github.event_name == 'workflow_dispatch' && inputs.persist_checkpoint == 'false') }}
+        uses: actions/cache/save@v4
+        with:
+          path: .checkpoint/vincular_content_generated_auto
+          key: vincular-content-generated-auto-${{ steps.slot.outputs.SLOT }}-${{ github.event.schedule || 'manual' }}
