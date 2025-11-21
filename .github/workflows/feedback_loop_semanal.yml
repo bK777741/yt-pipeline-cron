@@ -1,0 +1,36 @@
+name: "Feedback Loop Semanal"
+
+# Ejecuta Domingos 03:30 UTC (despues de ML training que es 02:00 UTC)
+on:
+  schedule:
+    - cron: "30 3 * * 0"
+  workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+jobs:
+  feedback_loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install supabase python-dotenv
+
+      - name: Ejecutar Feedback Loop
+        run: |
+          python scripts/analizar_feedback_loop.py
+
+      - name: Notificar
+        if: success()
+        run: echo "[OK] Feedback Loop ejecutado - 7 Cerebros actualizados"
