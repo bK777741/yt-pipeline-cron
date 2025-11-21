@@ -54,7 +54,7 @@ def main():
 
     videos = sb.table("videos").select(
         "video_id, title, published_at"
-    ).eq("is_tuyo", True).gte("published_at", fecha_limite).execute()
+    ).eq("es_tuyo", True).gte("published_at", fecha_limite).execute()
 
     print(f"   [OK] {len(videos.data)} videos encontrados (últimos 30 días)")
 
