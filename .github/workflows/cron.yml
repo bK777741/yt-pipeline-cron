@@ -142,13 +142,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/import_daily.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -234,13 +235,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/captura_subtitulos_github.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -864,13 +866,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/maint_metrics.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -953,13 +956,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/fetch_video_analytics.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -1042,13 +1046,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/compute_posting_schedule.py
+          retry_wait_seconds: 45
         env:
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY_RAW: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -1128,13 +1133,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/fetch_monetization_metrics.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -1225,13 +1231,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 20
+          max_attempts: 3
+          timeout_minutes: 10
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/fetch_trending_videos.py
+          retry_wait_seconds: 45
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           SUPABASE_URL_RAW: ${{ secrets.SUPABASE_URL }}
@@ -1319,13 +1326,14 @@ jobs:
         if: ${{ steps.cache.outputs['cache-hit'] != 'true' || (github.event_name == 'workflow_dispatch' && inputs.force == 'true') }}
         uses: nick-invision/retry@v3
         with:
-          max_attempts: 2
-          timeout_minutes: 15
+          max_attempts: 3
+          timeout_minutes: 8
           command: |
             set -euo pipefail
             export SUPABASE_URL="$(printf '%s' "$SUPABASE_URL_RAW" | tr -d '\r\n ' | sed 's:/*$::')"
             export SUPABASE_SERVICE_KEY="$(printf '%s' "$SUPABASE_SERVICE_KEY_RAW" | tr -d '\r\n ')"
             python ${{ steps.pydir.outputs.PYDIR }}/fetch_search_trends.py
+          retry_wait_seconds: 45
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
