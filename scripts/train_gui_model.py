@@ -63,6 +63,8 @@ def analizar_estructura(guiones):
 
     for guion in guiones:
         texto = guion["script_text"]
+        if not texto:  # Saltar si script_text es None o vacío
+            continue
         palabras = texto.split()
         total_palabras = len(palabras)
 
@@ -114,6 +116,8 @@ def analizar_ganchos(guiones):
 
     for guion in guiones:
         texto = guion["script_text"]
+        if not texto:  # Saltar si script_text es None o vacío
+            continue
         palabras = texto.split()
 
         if len(palabras) < 30:
@@ -169,7 +173,7 @@ def analizar_estilo(guiones):
     """Analiza el estilo de escritura/voz"""
     print("\n[4/7] Analizando estilo de comunicación...")
 
-    texto_completo = ' '.join([g["script_text"] for g in guiones])
+    texto_completo = ' '.join([g["script_text"] for g in guiones if g.get("script_text")])
 
     # Contar oraciones
     oraciones = re.split(r'[.!?]+', texto_completo)
@@ -217,7 +221,7 @@ def analizar_palabras_clave(guiones):
     """Analiza las palabras clave más frecuentes"""
     print("\n[5/7] Analizando palabras clave del nicho...")
 
-    texto_completo = ' '.join([g["script_text"] for g in guiones])
+    texto_completo = ' '.join([g["script_text"] for g in guiones if g.get("script_text")])
     texto_lower = texto_completo.lower()
 
     # Extraer palabras
