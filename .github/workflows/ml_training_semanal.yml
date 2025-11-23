@@ -66,11 +66,11 @@ jobs:
 
           if total < min_required:
               print(f'⚠️ SALTAR ENTRENAMIENTO - Insuficientes scripts ({total} < {min_required})')
-              print('SKIP_TRAINING=true' >> open(os.environ['GITHUB_ENV'], 'a').write(''))
+              open(os.environ['GITHUB_ENV'], 'a').write('SKIP_TRAINING=true\n')
               exit(0)
           else:
               print(f'✅ PROCEDER CON ENTRENAMIENTO - {total} scripts disponibles')
-              print('SKIP_TRAINING=false' >> open(os.environ['GITHUB_ENV'], 'a').write(''))
+              open(os.environ['GITHUB_ENV'], 'a').write('SKIP_TRAINING=false\n')
           "
 
       - name: Entrenar modelo ML
